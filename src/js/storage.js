@@ -21,7 +21,48 @@ window.WorldGame.Storage = (() => {
     return true;
   }
 
-  function saveGame(key, state, cameraView) {
+  function buildPayload(state, cameraView) {
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      state: cloneJson(state),
+      camera: cloneJson(cameraView)
+    };
+  }
+
+  async function saveGame(key, state, cameraView) {
+    const payload = buildPayload(state, cameraView);
+    const res = await fetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, payload })
+    });
+    if (!res.ok) {
+      throw new Error("Save request failed.");
+    }
+    return payload;
+  }
+
+  async function loadGame(key) {
+    const res = await fetch(`/api/load?key=${encodeURIComponent(key)}`, {
+      method: "GET",
+      headers: { "Accept": "application/json" }
+    });
+    if (res.status === 404) {
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error("Load request failed.");
+    }
+    const payload = await res.json();
+    if (!validatePayload(payload)) {
+      return null;
+    }
+    return payload;
+  }
+
+  // Optional local backup helpers.
+  function saveLocalBackup(key, state, cameraView) {
     const payload = {
       version: 1,
       savedAt: Date.now(),
@@ -32,7 +73,7 @@ window.WorldGame.Storage = (() => {
     return payload;
   }
 
-  function loadGame(key) {
+  function loadLocalBackup(key) {
     const raw = localStorage.getItem(key);
     if (!raw) {
       return null;
@@ -50,6 +91,10 @@ window.WorldGame.Storage = (() => {
 
   return {
     saveGame,
-    loadGame
+    loadGame,
+    saveLocalBackup,
+    loadLocalBackup,
+    validatePayload,
+    buildPayload
   };
 })();

@@ -14,7 +14,10 @@
       BASE_PRICES,
       NAMES,
       STORAGE_KEY,
-      ZOOM
+      ZOOM,
+      PAN,
+      CAMERA,
+      ASSETS
     } = Config;
 
     const canvas = document.getElementById("world");
@@ -24,6 +27,7 @@
       addPersonBtn: document.getElementById("addPersonBtn"),
       removeSelectedBtn: document.getElementById("removeSelectedBtn"),
       removeRandomBtn: document.getElementById("removeRandomBtn"),
+      newSimBtn: document.getElementById("newSimBtn"),
       saveBtn: document.getElementById("saveBtn"),
       loadBtn: document.getElementById("loadBtn"),
       pauseBtn: document.getElementById("pauseBtn"),
@@ -34,6 +38,12 @@
       zoomResetBtn: document.getElementById("zoomResetBtn"),
       zoomInBtn: document.getElementById("zoomInBtn"),
       zoomStat: document.getElementById("zoomStat"),
+      toolsMenuBtn: document.getElementById("toolsMenuBtn"),
+      toggleResourcesBtn: document.getElementById("toggleResourcesBtn"),
+      toolsPanel: document.getElementById("toolsPanel"),
+      resourceMapBtn: document.getElementById("resourceMapBtn"),
+      resourceWorldBtn: document.getElementById("resourceWorldBtn"),
+      resourceList: document.getElementById("resourceList"),
       popStat: document.getElementById("popStat"),
       stageStat: document.getElementById("stageStat"),
       dayStat: document.getElementById("dayStat"),
@@ -44,13 +54,31 @@
       eventLog: document.getElementById("eventLog")
     };
 
-    let state = createInitialState();
-    const camera = Camera.createCamera(WORLD, ZOOM);
+    let state = createInitialState(false);
+    const uiState = {
+      toolsOpen: false,
+      resourceView: "map"
+    };
+    const camera = Camera.createCamera(WORLD, ZOOM, CAMERA);
     const view = camera.view;
     const AUTOSAVE_INTERVAL_SEC = 20;
     let autosaveTimer = 0;
+    let saveInFlight = false;
+    let loadInFlight = false;
+    let suppressNextClick = false;
+    let isDragging = false;
+    let dragLastX = 0;
+    let dragLastY = 0;
+    const keyState = {
+      KeyW: false,
+      KeyA: false,
+      KeyS: false,
+      KeyD: false
+    };
 
-    function createInitialState() {
+    function createInitialState(randomized) {
+      const resourceScale = randomized ? rand(0.72, 1.35) : 1;
+      const moneyScale = randomized ? rand(0.65, 1.45) : 1;
       return {
         paused: false,
         speed: 1,
@@ -63,9 +91,9 @@
         eventLog: [],
         city: {
           stage: "Subsistence",
-          treasury: 380,
+          treasury: Math.round(380 * moneyScale),
           houses: [],
-          furnitureLevel: 5,
+          furnitureLevel: Math.round(5 * resourceScale),
           companies: {
             sawmill: false,
             workshop: false,
@@ -73,14 +101,14 @@
           }
         },
         market: {
-          treasury: 2400,
+          treasury: Math.round(2400 * moneyScale),
           stocks: {
-            food: 30,
-            logs: 18,
+            food: Math.round(30 * resourceScale),
+            logs: Math.round(18 * resourceScale),
             planks: 0,
-            furniture: 2,
-            herbs: 10,
-            medkits: 2
+            furniture: Math.round(2 * resourceScale),
+            herbs: Math.round(10 * resourceScale),
+            medkits: Math.round(2 * resourceScale)
           },
           demand: {
             food: 20,
@@ -94,20 +122,24 @@
         },
         resources: {
           forests: [
-            { x: 1340, y: 205, wood: 170, maxWood: 170 },
-            { x: 1430, y: 285, wood: 130, maxWood: 130 },
-            { x: 1260, y: 175, wood: 95, maxWood: 95 }
+            { x: 1340, y: 205, wood: Math.round(170 * resourceScale), maxWood: Math.round(170 * resourceScale) },
+            { x: 1430, y: 285, wood: Math.round(130 * resourceScale), maxWood: Math.round(130 * resourceScale) },
+            { x: 1260, y: 175, wood: Math.round(95 * resourceScale), maxWood: Math.round(95 * resourceScale) }
+          ],
+          orchards: [
+            { x: 330, y: 560, food: Math.round(120 * resourceScale), maxFood: Math.round(120 * resourceScale) },
+            { x: 455, y: 650, food: Math.round(95 * resourceScale), maxFood: Math.round(95 * resourceScale) }
           ],
           wild: [
-            { x: 260, y: 280, food: 90, herbs: 55, maxFood: 90, maxHerbs: 55 },
-            { x: 410, y: 210, food: 70, herbs: 45, maxFood: 70, maxHerbs: 45 },
-            { x: 180, y: 420, food: 85, herbs: 35, maxFood: 85, maxHerbs: 35 }
+            { x: 260, y: 280, food: Math.round(90 * resourceScale), herbs: Math.round(55 * resourceScale), maxFood: Math.round(90 * resourceScale), maxHerbs: Math.round(55 * resourceScale) },
+            { x: 410, y: 210, food: Math.round(70 * resourceScale), herbs: Math.round(45 * resourceScale), maxFood: Math.round(70 * resourceScale), maxHerbs: Math.round(45 * resourceScale) },
+            { x: 180, y: 420, food: Math.round(85 * resourceScale), herbs: Math.round(35 * resourceScale), maxFood: Math.round(85 * resourceScale), maxHerbs: Math.round(35 * resourceScale) }
           ],
           farm: {
-            crop: 45,
-            maxCrop: 120,
-            fertility: 90,
-            maxFertility: 110
+            crop: Math.round(45 * resourceScale),
+            maxCrop: Math.round(120 * resourceScale),
+            fertility: Math.round(90 * resourceScale),
+            maxFertility: Math.round(110 * resourceScale)
           }
         }
       };
@@ -120,6 +152,27 @@
     function rand(min, max) {
       return Math.random() * (max - min) + min;
     }
+
+    function loadImage(url) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = url;
+      return img;
+    }
+
+    const sprites = {
+      background: loadImage(ASSETS.background),
+      personSheet: loadImage(ASSETS.personSheet),
+      house: loadImage(ASSETS.house),
+      market: loadImage(ASSETS.market),
+      farm: loadImage(ASSETS.farm),
+      townhall: loadImage(ASSETS.townhall),
+      sawmill: loadImage(ASSETS.sawmill),
+      workshop: loadImage(ASSETS.workshop),
+      clinic: loadImage(ASSETS.clinic),
+      forest: loadImage(ASSETS.forest),
+      wild: loadImage(ASSETS.wild)
+    };
 
     function pick(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
@@ -180,9 +233,14 @@
       state.resources = { ...base.resources, ...incomingResources };
       state.resources.farm = { ...base.resources.farm, ...(incomingResources.farm || {}) };
       state.resources.forests = Array.isArray(incomingResources.forests) ? incomingResources.forests : base.resources.forests;
+      state.resources.orchards = Array.isArray(incomingResources.orchards) ? incomingResources.orchards : base.resources.orchards;
       state.resources.wild = Array.isArray(incomingResources.wild) ? incomingResources.wild : base.resources.wild;
 
-      state.people = Array.isArray(incoming.people) ? incoming.people : [];
+      state.people = Array.isArray(incoming.people) ? incoming.people.map((p) => ({
+        ...p,
+        hunger: Number.isFinite(p.hunger) ? clamp(p.hunger, 0, 100) : rand(20, 45),
+        health: Number.isFinite(p.health) ? clamp(p.health, 0, 100) : rand(70, 95)
+      })) : [];
       state.graves = Array.isArray(incoming.graves) ? incoming.graves : [];
       state.eventLog = Array.isArray(incoming.eventLog) ? incoming.eventLog.slice(0, 28) : [];
       state.city.houses = Array.isArray(incomingCity.houses) ? incomingCity.houses : [];
@@ -223,6 +281,13 @@
         buttonSetActive(ui.speed1Btn);
       }
       updateZoomLabel();
+      if (ui.toolsPanel) {
+        ui.toolsPanel.classList.toggle("hidden", !uiState.toolsOpen);
+      }
+      if (ui.resourceMapBtn && ui.resourceWorldBtn) {
+        ui.resourceMapBtn.classList.toggle("active", uiState.resourceView === "map");
+        ui.resourceWorldBtn.classList.toggle("active", uiState.resourceView === "world");
+      }
     }
 
     function updateZoomLabel() {
@@ -232,42 +297,96 @@
       ui.zoomStat.textContent = `Zoom: ${Math.round(view.zoom * 100)}%`;
     }
 
-    function saveToStorage(manual) {
-      try {
-        Storage.saveGame(STORAGE_KEY, state, camera.getSnapshot());
-        if (manual) {
-          addEvent("Game saved.");
-        }
-      } catch (_err) {
-        if (manual) {
-          addEvent("Save failed.");
-        }
-      }
-    }
-
-    function loadFromStorage(manual) {
-      const payload = Storage.loadGame(STORAGE_KEY);
-      if (!payload) {
-        if (manual) {
-          addEvent("No saved game found.");
-        }
+    async function saveToStorage(manual) {
+      if (saveInFlight) {
         return false;
       }
-
-      hydrateState(payload.state);
-      resizeCanvas();
-      camera.applySnapshot(payload.camera);
-      syncUiToggles();
-      if (manual) {
-        addEvent("Save loaded.");
+      saveInFlight = true;
+      try {
+        await Storage.saveGame(STORAGE_KEY, state, camera.getSnapshot());
+        Storage.saveLocalBackup(STORAGE_KEY, state, camera.getSnapshot());
+        if (manual) {
+          addEvent("Game saved on server.");
+        }
+        return true;
+      } catch (_err) {
+        Storage.saveLocalBackup(STORAGE_KEY, state, camera.getSnapshot());
+        if (manual) {
+          addEvent("Server save failed. Local backup updated.");
+        }
+        return false;
+      } finally {
+        saveInFlight = false;
       }
-      return true;
     }
 
-    function findHomePosition(person) {
-      const idx = person.homeIndex % state.city.houses.length;
-      const home = state.city.houses[idx];
-      return { x: home.x + home.w * 0.5, y: home.y + home.h * 0.5 };
+    async function loadFromStorage(manual) {
+      if (loadInFlight) {
+        return false;
+      }
+      loadInFlight = true;
+      try {
+        const payload = await Storage.loadGame(STORAGE_KEY);
+        if (!payload) {
+          const backup = Storage.loadLocalBackup(STORAGE_KEY);
+          if (!backup) {
+            if (manual) {
+              addEvent("No saved game found.");
+            }
+            return false;
+          }
+          hydrateState(backup.state);
+          resizeCanvas();
+          camera.applySnapshot(backup.camera);
+          syncUiToggles();
+          if (manual) {
+            addEvent("Server save not found. Local backup loaded.");
+          }
+          return true;
+        }
+
+        hydrateState(payload.state);
+        resizeCanvas();
+        camera.applySnapshot(payload.camera);
+        syncUiToggles();
+        Storage.saveLocalBackup(STORAGE_KEY, state, camera.getSnapshot());
+        if (manual) {
+          addEvent("Save loaded from server.");
+        }
+        return true;
+      } catch (_err) {
+        const backup = Storage.loadLocalBackup(STORAGE_KEY);
+        if (backup) {
+          hydrateState(backup.state);
+          resizeCanvas();
+          camera.applySnapshot(backup.camera);
+          syncUiToggles();
+          if (manual) {
+            addEvent("Server load failed. Local backup loaded.");
+          }
+          return true;
+        }
+        if (manual) {
+          addEvent("Load failed.");
+        }
+        return false;
+      } finally {
+        loadInFlight = false;
+      }
+    }
+
+    function startNewSimulation() {
+      state = createInitialState(true);
+      setupCity();
+      initPopulation(Math.floor(rand(6, 11)));
+      computeDemandAndPrices();
+      camera.resetZoom();
+      state.paused = false;
+      autosaveTimer = 0;
+      addEvent("New randomized simulation started.");
+      syncUiToggles();
+      resizeCanvas();
+      saveToStorage(false);
     }
 
     function createPerson() {
@@ -286,9 +405,7 @@
         speed: rand(110, 145),
         age: rand(17, 48),
         health: rand(72, 100),
-        hunger: rand(55, 85),
-        energy: rand(50, 88),
-        joy: rand(50, 82),
+        hunger: rand(18, 48),
         money: rand(16, 42),
         role: "unemployed",
         homeIndex,
@@ -368,6 +485,30 @@
         rebalanceJobs();
       });
 
+      ui.newSimBtn.addEventListener("click", () => {
+        startNewSimulation();
+      });
+
+      ui.toolsMenuBtn.addEventListener("click", () => {
+        uiState.toolsOpen = !uiState.toolsOpen;
+        syncUiToggles();
+      });
+
+      ui.toggleResourcesBtn.addEventListener("click", () => {
+        uiState.resourceView = uiState.resourceView === "map" ? "world" : "map";
+        syncUiToggles();
+      });
+
+      ui.resourceMapBtn.addEventListener("click", () => {
+        uiState.resourceView = "map";
+        syncUiToggles();
+      });
+
+      ui.resourceWorldBtn.addEventListener("click", () => {
+        uiState.resourceView = "world";
+        syncUiToggles();
+      });
+
       ui.pauseBtn.addEventListener("click", () => {
         state.paused = !state.paused;
         ui.pauseBtn.textContent = state.paused ? "Resume" : "Pause";
@@ -413,18 +554,67 @@
 
       canvas.addEventListener("wheel", (ev) => {
         ev.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const sx = ev.clientX - rect.left;
-        const sy = ev.clientY - rect.top;
-        const factor = ev.deltaY < 0 ? ZOOM.step : 1 / ZOOM.step;
+        const p = eventToCanvasPoint(ev);
+        const sx = p.x;
+        const sy = p.y;
+        const wheelDelta = clamp(ev.deltaY, -240, 240);
+        const factor = Math.exp(-wheelDelta * ZOOM.wheelStrength);
         camera.zoomByFactor(factor, sx, sy);
-        updateZoomLabel();
       }, { passive: false });
 
+      canvas.addEventListener("mousedown", (ev) => {
+        if (ev.button !== 0) {
+          return;
+        }
+        const p = eventToCanvasPoint(ev);
+        isDragging = true;
+        dragLastX = p.x;
+        dragLastY = p.y;
+        canvas.classList.add("is-grabbing");
+      });
+
+      window.addEventListener("mousemove", (ev) => {
+        if (!isDragging) {
+          return;
+        }
+        const p = eventToCanvasPoint(ev);
+        const dx = p.x - dragLastX;
+        const dy = p.y - dragLastY;
+        if (Math.abs(dx) + Math.abs(dy) > 1) {
+          suppressNextClick = true;
+        }
+        camera.panByPixels(dx, dy);
+        dragLastX = p.x;
+        dragLastY = p.y;
+      });
+
+      window.addEventListener("mouseup", () => {
+        isDragging = false;
+        canvas.classList.remove("is-grabbing");
+      });
+
+      window.addEventListener("keydown", (ev) => {
+        if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
+          keyState[ev.code] = true;
+          ev.preventDefault();
+        }
+      });
+
+      window.addEventListener("keyup", (ev) => {
+        if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
+          keyState[ev.code] = false;
+          ev.preventDefault();
+        }
+      });
+
       canvas.addEventListener("click", (ev) => {
-        const rect = canvas.getBoundingClientRect();
-        const sx = ev.clientX - rect.left;
-        const sy = ev.clientY - rect.top;
+        if (suppressNextClick) {
+          suppressNextClick = false;
+          return;
+        }
+        const p = eventToCanvasPoint(ev);
+        const sx = p.x;
+        const sy = p.y;
         const worldPos = camera.screenToWorld(sx, sy);
         const wx = worldPos.x;
         const wy = worldPos.y;
@@ -448,6 +638,13 @@
       syncUiToggles();
     }
 
+    function eventToCanvasPoint(ev) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (ev.clientX - rect.left) * (canvas.width / rect.width);
+      const y = (ev.clientY - rect.top) * (canvas.height / rect.height);
+      return { x, y };
+    }
+
     function alivePeople() {
       return state.people;
     }
@@ -465,7 +662,7 @@
       for (const g of GOODS) {
         let reserve = 0;
         if (g === "food") {
-          reserve = person.hunger < 65 ? 1 : 0;
+          reserve = person.hunger > 30 ? 1 : 0;
         }
         if (g === "medkits") {
           reserve = person.health < 55 ? 1 : 0;
@@ -523,6 +720,19 @@
       return best;
     }
 
+    function richestOrchard() {
+      let best = null;
+      let bestValue = -1;
+      for (let i = 0; i < state.resources.orchards.length; i++) {
+        const orchard = state.resources.orchards[i];
+        if (orchard.food > bestValue) {
+          bestValue = orchard.food;
+          best = { orchard, index: i };
+        }
+      }
+      return best;
+    }
+
     function richestForest() {
       let best = null;
       let bestValue = -1;
@@ -549,8 +759,14 @@
             return createTask("gather_herbs", { x: best.patch.x, y: best.patch.y }, 1.8, { patchIndex: best.index });
           }
         }
+        const orchard = richestOrchard();
         const bestFood = nearestPatchWith("food");
-        if (bestFood && bestFood.patch.food > 1) {
+        const orchardFood = orchard ? orchard.orchard.food : 0;
+        const wildFood = bestFood ? bestFood.patch.food : 0;
+        if (orchard && orchardFood >= wildFood && orchardFood > 1) {
+          return createTask("gather_orchard_food", { x: orchard.orchard.x, y: orchard.orchard.y }, 1.6, { orchardIndex: orchard.index });
+        }
+        if (bestFood && wildFood > 1) {
           return createTask("gather_food", { x: bestFood.patch.x, y: bestFood.patch.y }, 1.7, { patchIndex: bestFood.index });
         }
         return createTask("idle", BUILDINGS.townhall, 1.5);
@@ -606,20 +822,16 @@
       if (person.health < 55 && person.inventory.medkits > 0) {
         return createTask("use_medkit", null, 0.1);
       }
-      if (person.hunger < 32) {
-        if (person.inventory.food > 0) {
+      if (person.hunger >= 32) {
+        if (person.inventory.food > 0 && person.hunger >= 28) {
           return createTask("eat_food", null, 0.1);
         }
-        if (state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
+        if (person.hunger >= 55 && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
           return createTask("buy_food", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.5);
         }
       }
       if (person.health < 34 && state.city.companies.clinic && state.market.stocks.medkits > 0 && person.money >= state.market.prices.medkits) {
         return createTask("buy_medkit", { x: BUILDINGS.clinic.x + 45, y: BUILDINGS.clinic.y + 38 }, 0.5);
-      }
-      if (person.energy < 24) {
-        const home = findHomePosition(person);
-        return createTask("sleep", home, 3.2);
       }
       if (sellableUnits(person) > 0) {
         return createTask("sell_goods", { x: BUILDINGS.market.x + 56, y: BUILDINGS.market.y + 42 }, 0.7);
@@ -632,10 +844,9 @@
       const farm = state.resources.farm;
 
       if (task.type === "eat_food") {
-        if (person.inventory.food > 0) {
+        if (person.inventory.food > 0 && person.hunger >= 18) {
           person.inventory.food -= 1;
-          person.hunger = clamp(person.hunger + 48, 0, 100);
-          person.joy = clamp(person.joy + 3, 0, 100);
+          person.hunger = clamp(person.hunger - 46, 0, 100);
         }
         return;
       }
@@ -644,7 +855,6 @@
         if (person.inventory.medkits > 0) {
           person.inventory.medkits -= 1;
           person.health = clamp(person.health + 36, 0, 100);
-          person.joy = clamp(person.joy + 5, 0, 100);
         }
         return;
       }
@@ -669,19 +879,10 @@
         return;
       }
 
-      if (task.type === "sleep") {
-        person.energy = clamp(person.energy + rand(34, 56), 0, 100);
-        if (person.hunger > 35) {
-          person.health = clamp(person.health + rand(2, 5), 0, 100);
-        }
-        person.joy = clamp(person.joy + 2, 0, 100);
-        return;
-      }
-
       if (task.type === "sell_goods") {
         for (const good of GOODS) {
           let reserve = 0;
-          if (good === "food" && person.hunger < 65) {
+          if (good === "food" && person.hunger > 30) {
             reserve = 1;
           }
           if (good === "medkits" && person.health < 55) {
@@ -711,7 +912,16 @@
           const amount = Math.min(patch.food, rand(1.4, 3.1));
           patch.food -= amount;
           person.inventory.food += Math.floor(amount);
-          person.energy = clamp(person.energy - rand(4, 8), 0, 100);
+        }
+        return;
+      }
+
+      if (task.type === "gather_orchard_food") {
+        const orchard = state.resources.orchards[task.meta.orchardIndex];
+        if (orchard && orchard.food > 0.4) {
+          const amount = Math.min(orchard.food, rand(1.7, 3.6));
+          orchard.food -= amount;
+          person.inventory.food += Math.floor(amount);
         }
         return;
       }
@@ -722,7 +932,6 @@
           const amount = Math.min(patch.herbs, rand(1.0, 2.4));
           patch.herbs -= amount;
           person.inventory.herbs += Math.floor(amount);
-          person.energy = clamp(person.energy - rand(4, 8), 0, 100);
         }
         return;
       }
@@ -733,8 +942,6 @@
           const amount = Math.min(forest.wood, rand(1.5, 3.5));
           forest.wood -= amount;
           person.inventory.logs += Math.floor(amount);
-          person.energy = clamp(person.energy - rand(6, 10), 0, 100);
-          person.joy = clamp(person.joy - 1, 0, 100);
         }
         return;
       }
@@ -745,14 +952,12 @@
           farm.crop -= amount;
           farm.fertility = clamp(farm.fertility - amount * 0.9, 0, farm.maxFertility);
           person.inventory.food += Math.floor(amount);
-          person.energy = clamp(person.energy - rand(5, 9), 0, 100);
         }
         return;
       }
 
       if (task.type === "tend_farm") {
         farm.fertility = clamp(farm.fertility + rand(1.8, 4.6), 0, farm.maxFertility);
-        person.energy = clamp(person.energy - rand(3, 6), 0, 100);
         return;
       }
 
@@ -763,7 +968,6 @@
           const wage = 5;
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
-          person.energy = clamp(person.energy - rand(6, 10), 0, 100);
         }
         return;
       }
@@ -775,7 +979,6 @@
           const wage = 8;
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
-          person.energy = clamp(person.energy - rand(7, 11), 0, 100);
         }
         return;
       }
@@ -787,45 +990,35 @@
           const wage = 6;
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
-          person.energy = clamp(person.energy - rand(5, 8), 0, 100);
         }
         return;
-      }
-
-      if (task.type === "idle") {
-        person.energy = clamp(person.energy + 2, 0, 100);
       }
     }
 
     function updatePersonNeeds(person, dtHours) {
       person.age += dtHours / (24 * 365);
 
-      const workLoad = person.task && !["sleep", "idle"].includes(person.task.type) ? 1 : 0;
-      person.hunger = clamp(person.hunger - dtHours * (0.75 + workLoad * 0.28), 0, 100);
-      person.energy = clamp(person.energy - dtHours * (0.55 + workLoad * 0.2), 0, 100);
-      person.joy = clamp(person.joy - dtHours * 0.12, 0, 100);
+      const workLoad = person.task && person.task.type !== "idle" ? 1 : 0;
+      person.hunger = clamp(person.hunger + dtHours * (0.82 + workLoad * 0.28), 0, 100);
 
-      let healthDecay = dtHours * 0.02;
+      let healthDecay = dtHours * 0.07;
       if (person.age > 45) {
         healthDecay += dtHours * (person.age - 45) * 0.003;
       }
       if (person.age > 65) {
         healthDecay += dtHours * (person.age - 65) * 0.007;
       }
-      if (person.hunger < 16) {
+      if (person.hunger > 42) {
+        healthDecay += dtHours * 0.25;
+      }
+      if (person.hunger > 72) {
         healthDecay += dtHours * 0.56;
-      }
-      if (person.energy < 12) {
-        healthDecay += dtHours * 0.32;
-      }
-      if (person.joy < 14) {
-        healthDecay += dtHours * 0.16;
       }
 
       person.health = clamp(person.health - healthDecay, 0, 100);
 
-      if (person.hunger > 70 && person.energy > 60 && person.health < 95) {
-        person.health = clamp(person.health + dtHours * 0.07, 0, 100);
+      if (person.hunger <= 24 && person.health < 95) {
+        person.health = clamp(person.health + dtHours * 0.03, 0, 100);
       }
     }
 
@@ -925,7 +1118,7 @@
       };
 
       const priority = ["farmer", "forager", "medic", "carpenter", "sawmill_worker", "woodcutter"];
-      const pool = [...state.people].sort((a, b) => (b.health + b.energy + b.joy) - (a.health + a.energy + a.joy));
+      const pool = [...state.people].sort((a, b) => (b.health + (100 - b.hunger)) - (a.health + (100 - a.hunger)));
 
       for (const p of pool) {
         p.role = "unemployed";
@@ -968,6 +1161,10 @@
       for (const patch of state.resources.wild) {
         patch.food = clamp(patch.food + 0.09 * dtHours, 0, patch.maxFood);
         patch.herbs = clamp(patch.herbs + 0.05 * dtHours, 0, patch.maxHerbs);
+      }
+
+      for (const orchard of state.resources.orchards) {
+        orchard.food = clamp(orchard.food + 0.18 * dtHours, 0, orchard.maxFood);
       }
 
       const farm = state.resources.farm;
@@ -1106,12 +1303,13 @@
       const hh = formatHour(currentHour());
       const stocks = state.market.stocks;
       const forestLeft = state.resources.forests.reduce((sum, f) => sum + f.wood, 0);
+      const orchardFood = state.resources.orchards.reduce((sum, o) => sum + o.food, 0);
       const wildFood = state.resources.wild.reduce((sum, p) => sum + p.food, 0);
       const wildHerbs = state.resources.wild.reduce((sum, p) => sum + p.herbs, 0);
       ui.overlayText.innerHTML = `
         <div><b>Day ${state.day}</b> ${hh} | Population: ${state.people.length}</div>
         <div>Stage: <b>${state.city.stage}</b> | City cash: $${Math.round(state.city.treasury)}</div>
-        <div>Finite map resources: forest ${forestLeft.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
+        <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
 
       ui.marketTable.innerHTML = "";
@@ -1142,8 +1340,6 @@
 
           ${meterHtml("Health", selected.health, "#ca4b4b")}
           ${meterHtml("Hunger", selected.hunger, "#b58b33")}
-          ${meterHtml("Energy", selected.energy, "#3d89b5")}
-          ${meterHtml("Joy", selected.joy, "#4ea364")}
 
           <div class="mini"><b>Inventory:</b></div>
           <div class="mini">Food ${selected.inventory.food} | Logs ${selected.inventory.logs} | Planks ${selected.inventory.planks}</div>
@@ -1157,6 +1353,32 @@
         div.className = "event";
         div.innerHTML = `<b>${e}</b>`;
         ui.eventLog.appendChild(div);
+      }
+
+      renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs);
+    }
+
+    function renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs) {
+      if (!ui.resourceList) {
+        return;
+      }
+      if (uiState.resourceView === "map") {
+        ui.resourceList.innerHTML = [
+          `<div>Forest wood: <b>${forestLeft.toFixed(0)}</b></div>`,
+          `<div>Orchard food: <b>${orchardFood.toFixed(0)}</b></div>`,
+          `<div>Wild food: <b>${wildFood.toFixed(0)}</b></div>`,
+          `<div>Wild herbs: <b>${wildHerbs.toFixed(0)}</b></div>`,
+          `<div>Farm crop: <b>${state.resources.farm.crop.toFixed(0)}</b></div>`
+        ].join("");
+      } else {
+        ui.resourceList.innerHTML = [
+          `<div>Population: <b>${state.people.length}</b></div>`,
+          `<div>City treasury: <b>$${Math.round(state.city.treasury)}</b></div>`,
+          `<div>Market treasury: <b>$${Math.round(state.market.treasury)}</b></div>`,
+          `<div>Market food stock: <b>${stocks.food.toFixed(0)}</b></div>`,
+          `<div>Market herbs stock: <b>${stocks.herbs.toFixed(0)}</b></div>`,
+          `<div>Houses: <b>${state.city.houses.length}</b></div>`
+        ].join("");
       }
     }
 
@@ -1172,18 +1394,51 @@
 
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.max(640, Math.floor(rect.width));
-      canvas.height = Math.max(420, Math.floor(rect.height));
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.max(640, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(420, Math.floor(rect.height * dpr));
+      ctx.imageSmoothingEnabled = true;
       camera.resize(canvas.width, canvas.height);
       updateZoomLabel();
     }
 
-    function drawBuilding(b, fill, stroke, label, locked = false) {
+    function imageReady(img) {
+      return Boolean(img && img.complete && img.naturalWidth > 0);
+    }
+
+    function drawImageCover(img, x, y, w, h) {
+      if (!imageReady(img)) {
+        return false;
+      }
+      ctx.drawImage(img, x, y, w, h);
+      return true;
+    }
+
+    function drawPersonSprite(person) {
+      const img = sprites.personSheet;
+      if (!imageReady(img)) {
+        return false;
+      }
+      const cols = 4;
+      const rows = 4;
+      const fw = Math.floor(img.naturalWidth / cols);
+      const fh = Math.floor(img.naturalHeight / rows);
+      const frame = Math.floor((state.absHours * 3 + person.id) % (cols * rows));
+      const sx = (frame % cols) * fw;
+      const sy = Math.floor(frame / cols) * fh;
+      const dw = 16;
+      const dh = 24;
+      ctx.drawImage(img, sx, sy, fw, fh, person.x - dw * 0.5, person.y - dh * 0.78, dw, dh);
+      return true;
+    }
+
+    function drawBuilding(b, fill, stroke, label, locked = false, sprite = null) {
       ctx.fillStyle = locked ? "#5d625f" : fill;
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 2;
       ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.strokeRect(b.x, b.y, b.w, b.h);
+      drawImageCover(sprite, b.x + 4, b.y + 4, b.w - 8, b.h - 8);
       ctx.fillStyle = locked ? "#ced0ce" : "#f6f0df";
       ctx.font = "14px Trebuchet MS";
       ctx.textAlign = "center";
@@ -1191,8 +1446,10 @@
     }
 
     function renderMapBase() {
-      ctx.fillStyle = "#20453f";
-      ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+      if (!drawImageCover(sprites.background, 0, 0, WORLD.width, WORLD.height)) {
+        ctx.fillStyle = "#20453f";
+        ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+      }
 
       // Paths
       ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
@@ -1215,8 +1472,7 @@
         ctx.lineWidth = 2;
         ctx.fillRect(h.x, h.y, h.w, h.h);
         ctx.strokeRect(h.x, h.y, h.w, h.h);
-        ctx.fillStyle = "#724f2d";
-        ctx.fillRect(h.x + 6, h.y + 6, 12, 10);
+        drawImageCover(sprites.house, h.x + 6, h.y + 6, h.w - 12, h.h - 12);
       }
 
       // Resource patches
@@ -1228,10 +1484,26 @@
         ctx.arc(patch.x, patch.y, 44, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        drawImageCover(sprites.wild, patch.x - 16, patch.y - 16, 32, 32);
         ctx.fillStyle = "#dce8aa";
         ctx.font = "12px Trebuchet MS";
         ctx.textAlign = "center";
         ctx.fillText(`F${patch.food.toFixed(0)} H${patch.herbs.toFixed(0)}`, patch.x, patch.y + 4);
+      }
+
+      for (const orchard of state.resources.orchards) {
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(207, 136, 76, 0.34)";
+        ctx.strokeStyle = "rgba(235, 175, 90, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.arc(orchard.x, orchard.y, 42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        drawImageCover(sprites.farm, orchard.x - 16, orchard.y - 16, 32, 32);
+        ctx.fillStyle = "#ffe6bc";
+        ctx.font = "12px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText(`Orchard ${orchard.food.toFixed(0)}`, orchard.x, orchard.y + 4);
       }
 
       for (const f of state.resources.forests) {
@@ -1242,18 +1514,19 @@
         ctx.arc(f.x, f.y, 48, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        drawImageCover(sprites.forest, f.x - 18, f.y - 18, 36, 36);
         ctx.fillStyle = "#d3f0cb";
         ctx.font = "12px Trebuchet MS";
         ctx.textAlign = "center";
         ctx.fillText(`Wood ${f.wood.toFixed(0)}`, f.x, f.y + 4);
       }
 
-      drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false);
-      drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false);
-      drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false);
-      drawBuilding(BUILDINGS.sawmill, "#6787ab", "#3f5d7a", "Sawmill", !state.city.companies.sawmill);
-      drawBuilding(BUILDINGS.workshop, "#8968ad", "#5d437a", "Workshop", !state.city.companies.workshop);
-      drawBuilding(BUILDINGS.clinic, "#ae6666", "#744545", "Clinic", !state.city.companies.clinic);
+      drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, sprites.market);
+      drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, sprites.farm);
+      drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, sprites.townhall);
+      drawBuilding(BUILDINGS.sawmill, "#6787ab", "#3f5d7a", "Sawmill", !state.city.companies.sawmill, sprites.sawmill);
+      drawBuilding(BUILDINGS.workshop, "#8968ad", "#5d437a", "Workshop", !state.city.companies.workshop, sprites.workshop);
+      drawBuilding(BUILDINGS.clinic, "#ae6666", "#744545", "Clinic", !state.city.companies.clinic, sprites.clinic);
 
       // Farm resources
       ctx.fillStyle = "#f3edc8";
@@ -1275,14 +1548,19 @@
           ctx.stroke();
         }
 
-        ctx.beginPath();
-        ctx.arc(person.x, person.y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
+        const drewSprite = drawPersonSprite(person);
+        if (!drewSprite) {
+          ctx.beginPath();
+          ctx.arc(person.x, person.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
 
         if (person.id === state.selectedId) {
           ctx.strokeStyle = "#fff2c5";
           ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(person.x, person.y, 9, 0, Math.PI * 2);
           ctx.stroke();
 
           ctx.fillStyle = "#fdf7e0";
@@ -1318,10 +1596,32 @@
       updateUI();
     }
 
+    function updateCameraControls(dtSec) {
+      let dx = 0;
+      let dy = 0;
+      if (keyState.KeyA) dx -= 1;
+      if (keyState.KeyD) dx += 1;
+      if (keyState.KeyW) dy -= 1;
+      if (keyState.KeyS) dy += 1;
+
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy) || 1;
+        dx /= len;
+        dy /= len;
+        camera.panByWorld(dx * PAN.keyboardSpeed * dtSec, dy * PAN.keyboardSpeed * dtSec);
+      }
+
+      if (camera.update(dtSec)) {
+        updateZoomLabel();
+      }
+    }
+
     let lastFrame = performance.now();
     function gameLoop(now) {
       const dt = Math.min(0.12, (now - lastFrame) / 1000);
       lastFrame = now;
+
+      updateCameraControls(dt);
 
       if (!state.paused) {
         updateSimulation(dt);
@@ -1335,15 +1635,16 @@
       requestAnimationFrame(gameLoop);
     }
 
-    function init() {
+    async function init() {
       setupUI();
       resizeCanvas();
-      const restored = loadFromStorage(false);
+      const restored = await loadFromStorage(false);
       if (!restored) {
         setupCity();
         initPopulation(8);
         computeDemandAndPrices();
         addEvent("Simulation started.");
+        saveToStorage(false);
       } else {
         addEvent("Save restored on startup.");
       }

@@ -16,6 +16,13 @@
       box-sizing: border-box;
     }
 
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
     body {
       margin: 0;
       font-family: "Trebuchet MS", "Segoe UI", sans-serif;
@@ -24,35 +31,41 @@
         radial-gradient(circle at 20% 10%, rgba(196, 109, 43, 0.25), transparent 35%),
         radial-gradient(circle at 80% 90%, rgba(48, 107, 90, 0.25), transparent 35%),
         linear-gradient(160deg, var(--bg-0), var(--bg-1));
-      min-height: 100vh;
+      min-height: 100dvh;
       display: grid;
       place-items: center;
-      padding: 16px;
+      padding: 8px;
     }
 
     .app {
-      width: min(1480px, 100%);
-      background: var(--panel);
-      border: 2px solid #d4c9af;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 22px 45px rgba(0, 0, 0, 0.35);
-      display: grid;
-      grid-template-columns: 300px 1fr 330px;
-      min-height: 85vh;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      min-height: 0;
     }
 
     .sidebar,
     .rightbar {
       background: linear-gradient(180deg, var(--panel), var(--panel-2));
-      border-right: 1px solid var(--line);
+      border: 1px solid var(--line);
+      border-radius: 12px;
       padding: 14px;
       overflow: auto;
+      position: fixed;
+      top: 10px;
+      bottom: 10px;
+      z-index: 20;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .sidebar {
+      left: 10px;
+      width: min(300px, 32vw);
     }
 
     .rightbar {
-      border-right: none;
-      border-left: 1px solid var(--line);
+      right: 10px;
+      width: min(330px, 34vw);
     }
 
     h1 {
@@ -165,9 +178,9 @@
     }
 
     .world-wrap {
-      background: #122523;
-      position: relative;
-      overflow: hidden;
+      position: fixed;
+      inset: 0;
+      z-index: 1;
     }
 
     canvas {
@@ -175,6 +188,12 @@
       height: 100%;
       display: block;
       background: radial-gradient(circle at 30% 25%, #21463e, #173730 55%, #112a26);
+      cursor: grab;
+      image-rendering: auto;
+    }
+
+    canvas.is-grabbing {
+      cursor: grabbing;
     }
 
     .overlay {
@@ -244,6 +263,14 @@
       font-weight: 700;
     }
 
+    .tools-panel {
+      margin-bottom: 14px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
     .table {
       width: 100%;
       border-collapse: collapse;
@@ -286,17 +313,11 @@
     }
 
     @media (max-width: 1180px) {
-      .app {
-        grid-template-columns: 1fr;
+      .sidebar {
+        width: min(260px, 44vw);
       }
 
-      .sidebar,
       .rightbar {
-        border: none;
-        border-top: 1px solid var(--line);
-      }
-
-      .world-wrap {
-        min-height: 62vh;
+        width: min(280px, 46vw);
       }
     }

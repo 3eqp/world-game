@@ -16,6 +16,7 @@
         <button id="addPersonBtn">Add Person</button>
         <button id="removeSelectedBtn" class="danger">Remove Selected</button>
         <button id="removeRandomBtn" class="danger">Remove Random</button>
+        <button id="newSimBtn">New Simulation</button>
         <button id="pauseBtn">Pause</button>
       </div>
 
@@ -36,6 +37,19 @@
         <button id="zoomInBtn">+</button>
       </div>
       <div class="mini zoom-text" id="zoomStat">Zoom: 100%</div>
+
+      <div class="controls controls-two">
+        <button id="toolsMenuBtn">Tools</button>
+        <button id="toggleResourcesBtn">Resources</button>
+      </div>
+      <div class="person-card tools-panel hidden" id="toolsPanel">
+        <h2>Resource Menu</h2>
+        <div class="controls controls-two">
+          <button id="resourceMapBtn" class="active">Map</button>
+          <button id="resourceWorldBtn">World</button>
+        </div>
+        <div class="mini" id="resourceList"></div>
+      </div>
 
       <div class="stat-grid">
         <div class="stat-card">
