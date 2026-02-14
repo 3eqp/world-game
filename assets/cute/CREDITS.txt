@@ -1,0 +1,11 @@
+Cute Fantasy Free asset pack
+Source archive: /Users/zen/Downloads/Cute_Fantasy_Free.zip
+Original readme: assets/Cute_Fantasy_Free/read_me.txt
+
+License notes from author (Free Version):
+- Allowed: non-commercial use
+- Allowed: modifications
+- Not allowed: redistribution or resale (even modified)
+
+This project additionally generates tinted building variants at runtime in src/js/game.js
+based on the original house sprite to keep visual consistency for missing building-specific art.

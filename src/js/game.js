@@ -44,12 +44,15 @@
       resourceMapBtn: document.getElementById("resourceMapBtn"),
       resourceWorldBtn: document.getElementById("resourceWorldBtn"),
       resourceList: document.getElementById("resourceList"),
+      sidebar: document.querySelector(".sidebar"),
+      rightbar: document.querySelector(".rightbar"),
       popStat: document.getElementById("popStat"),
       stageStat: document.getElementById("stageStat"),
       dayStat: document.getElementById("dayStat"),
       marketCashStat: document.getElementById("marketCashStat"),
       overlayText: document.getElementById("overlayText"),
       personCard: document.getElementById("personCard"),
+      buildingCard: document.getElementById("buildingCard"),
       marketTable: document.getElementById("marketTable"),
       eventLog: document.getElementById("eventLog")
     };
@@ -75,6 +78,23 @@
       KeyS: false,
       KeyD: false
     };
+    const LIFE_SPAN_DAYS = 100;
+    const PROFESSIONS = ["forager", "farmer", "woodcutter", "sawmill_worker", "carpenter", "medic"];
+
+    function createExperienceProfile(seedRole) {
+      const profile = {
+        forager: 0,
+        farmer: 0,
+        woodcutter: 0,
+        sawmill_worker: 0,
+        carpenter: 0,
+        medic: 0
+      };
+      if (seedRole && Object.prototype.hasOwnProperty.call(profile, seedRole)) {
+        profile[seedRole] = rand(16, 34);
+      }
+      return profile;
+    }
 
     function createInitialState(randomized) {
       const resourceScale = randomized ? rand(0.72, 1.35) : 1;
@@ -85,6 +105,7 @@
         absHours: 0,
         day: 1,
         selectedId: null,
+        selectedBuilding: null,
         nextPersonId: 1,
         people: [],
         graves: [],
@@ -122,18 +143,21 @@
         },
         resources: {
           forests: [
-            { x: 1340, y: 205, wood: Math.round(170 * resourceScale), maxWood: Math.round(170 * resourceScale) },
-            { x: 1430, y: 285, wood: Math.round(130 * resourceScale), maxWood: Math.round(130 * resourceScale) },
-            { x: 1260, y: 175, wood: Math.round(95 * resourceScale), maxWood: Math.round(95 * resourceScale) }
+            { x: 2200, y: 430, wood: Math.round(170 * resourceScale), maxWood: Math.round(170 * resourceScale) },
+            { x: 2440, y: 560, wood: Math.round(130 * resourceScale), maxWood: Math.round(130 * resourceScale) },
+            { x: 2060, y: 350, wood: Math.round(95 * resourceScale), maxWood: Math.round(95 * resourceScale) },
+            { x: 2320, y: 760, wood: Math.round(150 * resourceScale), maxWood: Math.round(150 * resourceScale) }
           ],
           orchards: [
-            { x: 330, y: 560, food: Math.round(120 * resourceScale), maxFood: Math.round(120 * resourceScale) },
-            { x: 455, y: 650, food: Math.round(95 * resourceScale), maxFood: Math.round(95 * resourceScale) }
+            { x: 690, y: 1040, food: Math.round(120 * resourceScale), maxFood: Math.round(120 * resourceScale) },
+            { x: 860, y: 1220, food: Math.round(95 * resourceScale), maxFood: Math.round(95 * resourceScale) },
+            { x: 1020, y: 980, food: Math.round(110 * resourceScale), maxFood: Math.round(110 * resourceScale) }
           ],
           wild: [
-            { x: 260, y: 280, food: Math.round(90 * resourceScale), herbs: Math.round(55 * resourceScale), maxFood: Math.round(90 * resourceScale), maxHerbs: Math.round(55 * resourceScale) },
-            { x: 410, y: 210, food: Math.round(70 * resourceScale), herbs: Math.round(45 * resourceScale), maxFood: Math.round(70 * resourceScale), maxHerbs: Math.round(45 * resourceScale) },
-            { x: 180, y: 420, food: Math.round(85 * resourceScale), herbs: Math.round(35 * resourceScale), maxFood: Math.round(85 * resourceScale), maxHerbs: Math.round(35 * resourceScale) }
+            { x: 420, y: 560, food: Math.round(90 * resourceScale), herbs: Math.round(55 * resourceScale), maxFood: Math.round(90 * resourceScale), maxHerbs: Math.round(55 * resourceScale) },
+            { x: 620, y: 450, food: Math.round(70 * resourceScale), herbs: Math.round(45 * resourceScale), maxFood: Math.round(70 * resourceScale), maxHerbs: Math.round(45 * resourceScale) },
+            { x: 320, y: 760, food: Math.round(85 * resourceScale), herbs: Math.round(35 * resourceScale), maxFood: Math.round(85 * resourceScale), maxHerbs: Math.round(35 * resourceScale) },
+            { x: 890, y: 620, food: Math.round(100 * resourceScale), herbs: Math.round(48 * resourceScale), maxFood: Math.round(100 * resourceScale), maxHerbs: Math.round(48 * resourceScale) }
           ],
           farm: {
             crop: Math.round(45 * resourceScale),
@@ -162,6 +186,7 @@
 
     const sprites = {
       background: loadImage(ASSETS.background),
+      pathTile: loadImage(ASSETS.pathTile),
       personSheet: loadImage(ASSETS.personSheet),
       house: loadImage(ASSETS.house),
       market: loadImage(ASSETS.market),
@@ -171,7 +196,21 @@
       workshop: loadImage(ASSETS.workshop),
       clinic: loadImage(ASSETS.clinic),
       forest: loadImage(ASSETS.forest),
-      wild: loadImage(ASSETS.wild)
+      wild: loadImage(ASSETS.wild),
+      iconMarket: loadImage(ASSETS.iconMarket),
+      iconFarm: loadImage(ASSETS.iconFarm),
+      iconTownhall: loadImage(ASSETS.iconTownhall),
+      iconSawmill: loadImage(ASSETS.iconSawmill),
+      iconWorkshop: loadImage(ASSETS.iconWorkshop),
+      iconClinic: loadImage(ASSETS.iconClinic)
+    };
+    const generatedBuildingSprites = {
+      market: null,
+      farm: null,
+      townhall: null,
+      sawmill: null,
+      workshop: null,
+      clinic: null
     };
 
     function pick(arr) {
@@ -207,10 +246,10 @@
     }
 
     function setupCity() {
-      state.city.houses.push(createHouse(540, 595));
-      state.city.houses.push(createHouse(620, 660));
-      state.city.houses.push(createHouse(720, 620));
-      state.city.houses.push(createHouse(545, 735));
+      state.city.houses.push(createHouse(1180, 980));
+      state.city.houses.push(createHouse(1300, 1080));
+      state.city.houses.push(createHouse(1460, 1010));
+      state.city.houses.push(createHouse(1200, 1180));
     }
 
     function hydrateState(rawState) {
@@ -238,6 +277,18 @@
 
       state.people = Array.isArray(incoming.people) ? incoming.people.map((p) => ({
         ...p,
+        role: typeof p.role === "string" ? p.role : "unemployed",
+        baseProfession: typeof p.baseProfession === "string" ? p.baseProfession : (typeof p.role === "string" ? p.role : pick(PROFESSIONS)),
+        experience: {
+          ...createExperienceProfile(),
+          ...(p.experience && typeof p.experience === "object" ? p.experience : {})
+        },
+        switchPenaltyHours: Number.isFinite(p.switchPenaltyHours) ? Math.max(0, p.switchPenaltyHours) : 0,
+        ageDays: Number.isFinite(p.ageDays)
+          ? Math.max(0, p.ageDays)
+          : (Number.isFinite(p.age)
+            ? clamp((Math.max(0, p.age) / 80) * LIFE_SPAN_DAYS, 0, LIFE_SPAN_DAYS)
+            : rand(18, 70)),
         hunger: Number.isFinite(p.hunger) ? clamp(p.hunger, 0, 100) : rand(20, 45),
         health: Number.isFinite(p.health) ? clamp(p.health, 0, 100) : rand(70, 95)
       })) : [];
@@ -253,6 +304,9 @@
       state.nextPersonId = Math.max(Number(state.nextPersonId) || 1, maxId + 1);
       if (!state.people.some((p) => p.id === state.selectedId)) {
         state.selectedId = null;
+      }
+      if (typeof state.selectedBuilding !== "string" && state.selectedBuilding !== null) {
+        state.selectedBuilding = null;
       }
       if (![1, 3, 6].includes(state.speed)) {
         state.speed = 1;
@@ -389,30 +443,35 @@
       saveToStorage(false);
     }
 
-    function createPerson() {
+    function createPerson(opts = {}) {
       const id = state.nextPersonId++;
       const homeIndex = Math.floor(Math.random() * state.city.houses.length);
       const home = state.city.houses[homeIndex];
+      const profession = pick(PROFESSIONS);
       const x = home.x + rand(8, home.w - 8);
       const y = home.y + rand(8, home.h - 8);
+      const isBirth = opts.isBirth === true;
       const person = {
         id,
-        name: `${pick(NAMES)} #${id}`,
+        name: isBirth ? `Newborn ${pick(NAMES)} #${id}` : `${pick(NAMES)} #${id}`,
         x,
         y,
         targetX: x,
         targetY: y,
         speed: rand(110, 145),
-        age: rand(17, 48),
-        health: rand(72, 100),
-        hunger: rand(18, 48),
-        money: rand(16, 42),
-        role: "unemployed",
+        ageDays: isBirth ? 0 : rand(18, 70),
+        health: isBirth ? rand(82, 100) : rand(72, 100),
+        hunger: isBirth ? rand(8, 22) : rand(18, 48),
+        money: isBirth ? 0 : rand(16, 42),
+        role: profession,
+        baseProfession: profession,
+        experience: createExperienceProfile(profession),
+        switchPenaltyHours: 0,
         homeIndex,
         alive: true,
         task: null,
         inventory: {
-          food: Math.random() < 0.45 ? 1 : 0,
+          food: isBirth ? 0 : (Math.random() < 0.45 ? 1 : 0),
           logs: 0,
           planks: 0,
           furniture: 0,
@@ -440,9 +499,9 @@
 
     function diePerson(person, reason) {
       person.alive = false;
-      state.graves.push({ name: person.name, age: person.age, reason });
+      state.graves.push({ name: person.name, ageDays: person.ageDays, reason });
       removePersonById(person.id, reason);
-      addEvent(`${person.name} died at ${person.age.toFixed(1)} years (${reason}).`);
+      addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}).`);
     }
 
     function initPopulation(count) {
@@ -464,6 +523,7 @@
       ui.addPersonBtn.addEventListener("click", () => {
         const p = createPerson();
         state.selectedId = p.id;
+        state.selectedBuilding = null;
         addEvent(`${p.name} joined the city.`);
         rebalanceJobs();
       });
@@ -631,6 +691,14 @@
 
         if (chosen) {
           state.selectedId = chosen.id;
+          state.selectedBuilding = null;
+          return;
+        }
+
+        const buildingId = findBuildingAt(wx, wy);
+        if (buildingId) {
+          state.selectedBuilding = buildingId;
+          state.selectedId = null;
         }
       });
 
@@ -653,6 +721,53 @@
       return state.people.find((p) => p.id === id) || null;
     }
 
+    function buildingRole(key) {
+      if (key === "sawmill") return "sawmill_worker";
+      if (key === "workshop") return "carpenter";
+      if (key === "clinic") return "medic";
+      if (key === "farm") return "farmer";
+      if (key === "townhall") return "unemployed";
+      return null;
+    }
+
+    function workersForBuilding(key) {
+      const role = buildingRole(key);
+      if (!role) {
+        return [];
+      }
+      return state.people.filter((p) => p.role === role);
+    }
+
+    function workersBusyAt(taskTypes) {
+      const set = new Set(taskTypes);
+      return state.people.filter((p) => p.task && set.has(p.task.type)).length;
+    }
+
+    function findBuildingAt(x, y) {
+      for (let i = 0; i < state.city.houses.length; i++) {
+        const h = state.city.houses[i];
+        if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+          return `house:${i}`;
+        }
+      }
+
+      const order = ["market", "farm", "townhall", "sawmill", "workshop", "clinic"];
+      for (const key of order) {
+        const b = BUILDINGS[key];
+        if (!b) {
+          continue;
+        }
+        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          return `building:${key}`;
+        }
+      }
+      return null;
+    }
+
+    function isSelectedBuilding(id) {
+      return state.selectedBuilding === id;
+    }
+
     function inventoryTotal(person) {
       return GOODS.reduce((sum, g) => sum + person.inventory[g], 0);
     }
@@ -670,6 +785,52 @@
         total += Math.max(0, person.inventory[g] - reserve);
       }
       return total;
+    }
+
+    function taskRole(taskType) {
+      if (taskType === "gather_food" || taskType === "gather_herbs" || taskType === "gather_orchard_food") return "forager";
+      if (taskType === "harvest_farm" || taskType === "tend_farm") return "farmer";
+      if (taskType === "chop_wood") return "woodcutter";
+      if (taskType === "make_planks") return "sawmill_worker";
+      if (taskType === "make_furniture") return "carpenter";
+      if (taskType === "make_medkit") return "medic";
+      return null;
+    }
+
+    function getExperience(person, role) {
+      if (!role || !person.experience) {
+        return 0;
+      }
+      return clamp(Number(person.experience[role]) || 0, 0, 100);
+    }
+
+    function addExperience(person, role, amount) {
+      if (!role || !person.experience || !Number.isFinite(amount) || amount <= 0) {
+        return;
+      }
+      person.experience[role] = clamp((Number(person.experience[role]) || 0) + amount, 0, 100);
+    }
+
+    function roleEfficiency(person, role) {
+      const exp = getExperience(person, role);
+      const expFactor = 0.62 + exp * 0.0068;
+      const penaltyFactor = person.switchPenaltyHours > 0 ? 0.42 : 1;
+      const baseBonus = person.baseProfession === role ? 1.05 : 1;
+      return expFactor * penaltyFactor * baseBonus;
+    }
+
+    function assignRole(person, newRole) {
+      if (person.role === newRole) {
+        return;
+      }
+      const oldRole = person.role;
+      person.role = newRole;
+      if (newRole !== "unemployed" && oldRole !== "unemployed") {
+        person.switchPenaltyHours = 72;
+        person.health = clamp(person.health - 8, 0, 100);
+        person.hunger = clamp(person.hunger + 14, 0, 100);
+        addEvent(`${person.name} switched profession ${roleLabel(oldRole)} -> ${roleLabel(newRole)} and is adapting.`);
+      }
     }
 
     function moveToward(person, tx, ty, dtHours) {
@@ -909,9 +1070,10 @@
       if (task.type === "gather_food") {
         const patch = state.resources.wild[task.meta.patchIndex];
         if (patch && patch.food > 0.4) {
-          const amount = Math.min(patch.food, rand(1.4, 3.1));
+          const amount = Math.min(patch.food, rand(1.4, 3.1) * roleEfficiency(person, "forager"));
           patch.food -= amount;
           person.inventory.food += Math.floor(amount);
+          addExperience(person, "forager", 1.2);
         }
         return;
       }
@@ -919,9 +1081,10 @@
       if (task.type === "gather_orchard_food") {
         const orchard = state.resources.orchards[task.meta.orchardIndex];
         if (orchard && orchard.food > 0.4) {
-          const amount = Math.min(orchard.food, rand(1.7, 3.6));
+          const amount = Math.min(orchard.food, rand(1.7, 3.6) * roleEfficiency(person, "forager"));
           orchard.food -= amount;
           person.inventory.food += Math.floor(amount);
+          addExperience(person, "forager", 1.4);
         }
         return;
       }
@@ -929,9 +1092,10 @@
       if (task.type === "gather_herbs") {
         const patch = state.resources.wild[task.meta.patchIndex];
         if (patch && patch.herbs > 0.4) {
-          const amount = Math.min(patch.herbs, rand(1.0, 2.4));
+          const amount = Math.min(patch.herbs, rand(1.0, 2.4) * roleEfficiency(person, "forager"));
           patch.herbs -= amount;
           person.inventory.herbs += Math.floor(amount);
+          addExperience(person, "forager", 1.1);
         }
         return;
       }
@@ -939,35 +1103,40 @@
       if (task.type === "chop_wood") {
         const forest = state.resources.forests[task.meta.forestIndex];
         if (forest && forest.wood > 0.6) {
-          const amount = Math.min(forest.wood, rand(1.5, 3.5));
+          const amount = Math.min(forest.wood, rand(1.5, 3.5) * roleEfficiency(person, "woodcutter"));
           forest.wood -= amount;
           person.inventory.logs += Math.floor(amount);
+          addExperience(person, "woodcutter", 1.35);
         }
         return;
       }
 
       if (task.type === "harvest_farm") {
         if (farm.crop > 0.6) {
-          const amount = Math.min(farm.crop, rand(1.8, 4.2));
+          const amount = Math.min(farm.crop, rand(1.8, 4.2) * roleEfficiency(person, "farmer"));
           farm.crop -= amount;
           farm.fertility = clamp(farm.fertility - amount * 0.9, 0, farm.maxFertility);
           person.inventory.food += Math.floor(amount);
+          addExperience(person, "farmer", 1.4);
         }
         return;
       }
 
       if (task.type === "tend_farm") {
         farm.fertility = clamp(farm.fertility + rand(1.8, 4.6), 0, farm.maxFertility);
+        addExperience(person, "farmer", 0.8);
         return;
       }
 
       if (task.type === "make_planks") {
         if (market.stocks.logs >= 2 && market.demand.planks > market.stocks.planks) {
           market.stocks.logs -= 2;
-          market.stocks.planks += 1;
-          const wage = 5;
+          const gain = Math.max(1, Math.round(roleEfficiency(person, "sawmill_worker")));
+          market.stocks.planks += gain;
+          const wage = Math.round(5 * roleEfficiency(person, "sawmill_worker"));
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
+          addExperience(person, "sawmill_worker", 1.45);
         }
         return;
       }
@@ -975,10 +1144,12 @@
       if (task.type === "make_furniture") {
         if (market.stocks.planks >= 2 && market.demand.furniture > market.stocks.furniture) {
           market.stocks.planks -= 2;
-          market.stocks.furniture += 1;
-          const wage = 8;
+          const gain = Math.max(1, Math.round(roleEfficiency(person, "carpenter")));
+          market.stocks.furniture += gain;
+          const wage = Math.round(8 * roleEfficiency(person, "carpenter"));
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
+          addExperience(person, "carpenter", 1.55);
         }
         return;
       }
@@ -986,33 +1157,42 @@
       if (task.type === "make_medkit") {
         if (market.stocks.herbs >= 2 && market.demand.medkits > market.stocks.medkits) {
           market.stocks.herbs -= 2;
-          market.stocks.medkits += 1;
-          const wage = 6;
+          const gain = Math.max(1, Math.round(roleEfficiency(person, "medic")));
+          market.stocks.medkits += gain;
+          const wage = Math.round(6 * roleEfficiency(person, "medic"));
           person.money += wage;
           state.city.treasury = Math.max(0, state.city.treasury - wage);
+          addExperience(person, "medic", 1.5);
         }
         return;
       }
     }
 
     function updatePersonNeeds(person, dtHours) {
-      person.age += dtHours / (24 * 365);
+      person.ageDays += dtHours / 24;
 
       const workLoad = person.task && person.task.type !== "idle" ? 1 : 0;
       person.hunger = clamp(person.hunger + dtHours * (0.82 + workLoad * 0.28), 0, 100);
+      if (person.switchPenaltyHours > 0) {
+        person.switchPenaltyHours = Math.max(0, person.switchPenaltyHours - dtHours);
+        person.hunger = clamp(person.hunger + dtHours * 0.22, 0, 100);
+      }
 
       let healthDecay = dtHours * 0.07;
-      if (person.age > 45) {
-        healthDecay += dtHours * (person.age - 45) * 0.003;
+      if (person.ageDays > 60) {
+        healthDecay += dtHours * (person.ageDays - 60) * 0.0025;
       }
-      if (person.age > 65) {
-        healthDecay += dtHours * (person.age - 65) * 0.007;
+      if (person.ageDays > 85) {
+        healthDecay += dtHours * (person.ageDays - 85) * 0.005;
       }
       if (person.hunger > 42) {
         healthDecay += dtHours * 0.25;
       }
       if (person.hunger > 72) {
         healthDecay += dtHours * 0.56;
+      }
+      if (person.switchPenaltyHours > 0) {
+        healthDecay += dtHours * 0.18;
       }
 
       person.health = clamp(person.health - healthDecay, 0, 100);
@@ -1031,8 +1211,8 @@
 
         updatePersonNeeds(person, dtHours);
 
-        if (person.health <= 0 || person.age >= 95) {
-          diePerson(person, "health collapse");
+        if (person.health <= 0 || person.ageDays >= LIFE_SPAN_DAYS) {
+          diePerson(person, person.ageDays >= LIFE_SPAN_DAYS ? "old age" : "health collapse");
           continue;
         }
 
@@ -1118,30 +1298,61 @@
       };
 
       const priority = ["farmer", "forager", "medic", "carpenter", "sawmill_worker", "woodcutter"];
-      const pool = [...state.people].sort((a, b) => (b.health + (100 - b.hunger)) - (a.health + (100 - a.hunger)));
-
-      for (const p of pool) {
-        p.role = "unemployed";
-      }
-
-      let cursor = 0;
-      for (const role of priority) {
-        const amount = clamp(wants[role], 0, pop);
-        for (let i = 0; i < amount && cursor < pool.length; i++) {
-          pool[cursor].role = role;
-          cursor++;
-        }
-      }
-
-      while (cursor < pool.length) {
-        if (state.market.demand.logs > state.market.stocks.logs) {
-          pool[cursor].role = "woodcutter";
-        } else if (state.market.demand.food > state.market.stocks.food) {
-          pool[cursor].role = "forager";
+      const roleCounts = {
+        forager: 0,
+        farmer: 0,
+        woodcutter: 0,
+        sawmill_worker: 0,
+        carpenter: 0,
+        medic: 0,
+        unemployed: 0
+      };
+      for (const p of state.people) {
+        if (Object.prototype.hasOwnProperty.call(roleCounts, p.role)) {
+          roleCounts[p.role] += 1;
         } else {
-          pool[cursor].role = "unemployed";
+          roleCounts.unemployed += 1;
         }
-        cursor++;
+      }
+
+      function roleScore(person, targetRole) {
+        const exp = getExperience(person, targetRole);
+        const sameRoleBonus = person.role === targetRole ? 80 : 0;
+        const baseBonus = person.baseProfession === targetRole ? 35 : 0;
+        const switchPenalty = person.role !== targetRole ? (person.switchPenaltyHours > 0 ? 120 : 45) : 0;
+        const condition = person.health + (100 - person.hunger);
+        return exp * 3 + sameRoleBonus + baseBonus + condition - switchPenalty;
+      }
+
+      function bestCandidate(targetRole) {
+        const candidates = state.people
+          .filter((p) => p.role !== targetRole)
+          .sort((a, b) => roleScore(b, targetRole) - roleScore(a, targetRole));
+        return candidates.length > 0 ? candidates[0] : null;
+      }
+
+      for (const role of priority) {
+        const target = clamp(wants[role], 0, pop);
+        while (roleCounts[role] < target) {
+          const candidate = bestCandidate(role);
+          if (!candidate) {
+            break;
+          }
+          const prev = candidate.role;
+          assignRole(candidate, role);
+          if (Object.prototype.hasOwnProperty.call(roleCounts, prev)) {
+            roleCounts[prev] = Math.max(0, roleCounts[prev] - 1);
+          } else {
+            roleCounts.unemployed = Math.max(0, roleCounts.unemployed - 1);
+          }
+          roleCounts[role] += 1;
+        }
+      }
+
+      for (const p of state.people) {
+        if (!priority.includes(p.role)) {
+          assignRole(p, "unemployed");
+        }
       }
 
       for (const p of state.people) {
@@ -1210,8 +1421,8 @@
           state.market.stocks.planks -= needPlanks;
           state.city.treasury -= 70;
 
-          const x = 510 + (state.city.houses.length % 4) * 84 + rand(-12, 12);
-          const y = 590 + Math.floor(state.city.houses.length / 4) * 76 + rand(-10, 10);
+          const x = 1110 + (state.city.houses.length % 5) * 96 + rand(-16, 16);
+          const y = 960 + Math.floor(state.city.houses.length / 5) * 86 + rand(-14, 14);
           state.city.houses.push(createHouse(x, y));
           addEvent("A new house was built.");
         }
@@ -1241,6 +1452,25 @@
         if (state.city.treasury >= spend) {
           state.city.treasury -= spend;
           state.market.treasury += spend;
+        }
+      }
+
+      const capacity = state.city.houses.length * HOUSE_CAPACITY;
+      const freeSlots = Math.max(0, capacity - state.people.length);
+      if (freeSlots > 0) {
+        const wellFedAdults = state.people.filter((p) => p.ageDays >= 18 && p.hunger < 55 && p.health > 45).length;
+        const birthChance = clamp(0.05 + wellFedAdults * 0.008, 0.05, 0.42);
+        const maxBirths = Math.min(freeSlots, 2);
+        let born = 0;
+        for (let i = 0; i < maxBirths; i++) {
+          if (Math.random() < birthChance) {
+            const baby = createPerson({ isBirth: true });
+            addEvent(`${baby.name} was born.`);
+            born += 1;
+          }
+        }
+        if (born > 0) {
+          rebalanceJobs();
         }
       }
 
@@ -1286,7 +1516,7 @@
 
     function roleLabel(role) {
       if (role === "sawmill_worker") return "Sawmill worker";
-      return role.replace("_", " ");
+      return String(role || "unemployed").replaceAll("_", " ");
     }
 
     function taskLabel(task) {
@@ -1333,10 +1563,13 @@
       } else {
         ui.personCard.innerHTML = `
           <h2>${selected.name}</h2>
-          <div class="mini"><b>Age:</b> ${selected.age.toFixed(1)} years</div>
+          <div class="mini"><b>Age:</b> ${selected.ageDays.toFixed(1)} / ${LIFE_SPAN_DAYS} days</div>
           <div class="mini"><b>Role:</b> ${roleLabel(selected.role)}</div>
+          <div class="mini"><b>Base profession:</b> ${roleLabel(selected.baseProfession || selected.role)}</div>
           <div class="mini"><b>Task:</b> ${taskLabel(selected.task)}</div>
           <div class="mini"><b>Money:</b> $${selected.money.toFixed(0)}</div>
+          <div class="mini"><b>Experience:</b> ${Math.round(getExperience(selected, selected.role))}%</div>
+          <div class="mini"><b>Switch penalty:</b> ${selected.switchPenaltyHours > 0 ? `${selected.switchPenaltyHours.toFixed(1)}h` : "none"}</div>
 
           ${meterHtml("Health", selected.health, "#ca4b4b")}
           ${meterHtml("Hunger", selected.hunger, "#b58b33")}
@@ -1356,6 +1589,7 @@
       }
 
       renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs);
+      renderBuildingCard();
     }
 
     function renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs) {
@@ -1382,6 +1616,124 @@
       }
     }
 
+    function renderBuildingCard() {
+      if (!ui.buildingCard) {
+        return;
+      }
+      const selected = state.selectedBuilding;
+      if (!selected) {
+        ui.buildingCard.innerHTML = `
+          <h2>No building selected</h2>
+          <div class="mini">Click a building on the map to inspect workers and production stats.</div>
+        `;
+        return;
+      }
+
+      if (selected.startsWith("house:")) {
+        const idx = Number(selected.split(":")[1]);
+        const h = state.city.houses[idx];
+        if (!h) {
+          ui.buildingCard.innerHTML = `
+            <h2>No building selected</h2>
+            <div class="mini">Building not found.</div>
+          `;
+          return;
+        }
+        const residents = state.people.filter((p) => (p.homeIndex % state.city.houses.length) === idx).length;
+        const capacity = HOUSE_CAPACITY;
+        ui.buildingCard.innerHTML = `
+          <h2>House #${idx + 1}</h2>
+          <div class="mini"><b>Residents:</b> ${residents} / ${capacity}</div>
+          <div class="mini"><b>Furniture pressure:</b> ${(state.city.furnitureLevel / Math.max(1, state.city.houses.length)).toFixed(1)} per house</div>
+          <div class="mini"><b>Coords:</b> ${Math.round(h.x)}, ${Math.round(h.y)}</div>
+        `;
+        return;
+      }
+
+      if (!selected.startsWith("building:")) {
+        return;
+      }
+
+      const key = selected.split(":")[1];
+      const workers = workersForBuilding(key);
+      const workerNames = workers.slice(0, 4).map((p) => p.name).join(", ");
+
+      if (key === "market") {
+        const tradingNow = workersBusyAt(["buy_food", "buy_medkit", "sell_goods"]);
+        ui.buildingCard.innerHTML = `
+          <h2>Market</h2>
+          <div class="mini"><b>Treasury:</b> $${Math.round(state.market.treasury)}</div>
+          <div class="mini"><b>Food stock:</b> ${state.market.stocks.food.toFixed(0)} | demand ${state.market.demand.food.toFixed(0)}</div>
+          <div class="mini"><b>Herbs stock:</b> ${state.market.stocks.herbs.toFixed(0)} | demand ${state.market.demand.herbs.toFixed(0)}</div>
+          <div class="mini"><b>Active traders right now:</b> ${tradingNow}</div>
+        `;
+        return;
+      }
+
+      if (key === "farm") {
+        const active = workersBusyAt(["harvest_farm", "tend_farm"]);
+        ui.buildingCard.innerHTML = `
+          <h2>Farm</h2>
+          <div class="mini"><b>Farmers:</b> ${workers.length}</div>
+          <div class="mini"><b>Working now:</b> ${active}</div>
+          <div class="mini"><b>Crop:</b> ${state.resources.farm.crop.toFixed(0)} / ${state.resources.farm.maxCrop.toFixed(0)}</div>
+          <div class="mini"><b>Fertility:</b> ${state.resources.farm.fertility.toFixed(0)} / ${state.resources.farm.maxFertility.toFixed(0)}</div>
+          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
+        `;
+        return;
+      }
+
+      if (key === "sawmill") {
+        const active = workersBusyAt(["make_planks"]);
+        ui.buildingCard.innerHTML = `
+          <h2>Sawmill ${state.city.companies.sawmill ? "" : "(locked)"}</h2>
+          <div class="mini"><b>Workers:</b> ${workers.length}</div>
+          <div class="mini"><b>Working now:</b> ${active}</div>
+          <div class="mini"><b>Input logs:</b> ${state.market.stocks.logs.toFixed(0)}</div>
+          <div class="mini"><b>Output planks:</b> ${state.market.stocks.planks.toFixed(0)}</div>
+          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
+        `;
+        return;
+      }
+
+      if (key === "workshop") {
+        const active = workersBusyAt(["make_furniture"]);
+        ui.buildingCard.innerHTML = `
+          <h2>Workshop ${state.city.companies.workshop ? "" : "(locked)"}</h2>
+          <div class="mini"><b>Workers:</b> ${workers.length}</div>
+          <div class="mini"><b>Working now:</b> ${active}</div>
+          <div class="mini"><b>Input planks:</b> ${state.market.stocks.planks.toFixed(0)}</div>
+          <div class="mini"><b>Output furniture:</b> ${state.market.stocks.furniture.toFixed(0)}</div>
+          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
+        `;
+        return;
+      }
+
+      if (key === "clinic") {
+        const active = workersBusyAt(["make_medkit"]);
+        ui.buildingCard.innerHTML = `
+          <h2>Clinic ${state.city.companies.clinic ? "" : "(locked)"}</h2>
+          <div class="mini"><b>Medics:</b> ${workers.length}</div>
+          <div class="mini"><b>Working now:</b> ${active}</div>
+          <div class="mini"><b>Input herbs:</b> ${state.market.stocks.herbs.toFixed(0)}</div>
+          <div class="mini"><b>Output medkits:</b> ${state.market.stocks.medkits.toFixed(0)}</div>
+          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
+        `;
+        return;
+      }
+
+      if (key === "townhall") {
+        const unemployed = state.people.filter((p) => p.role === "unemployed").length;
+        ui.buildingCard.innerHTML = `
+          <h2>Town Hall</h2>
+          <div class="mini"><b>City treasury:</b> $${Math.round(state.city.treasury)}</div>
+          <div class="mini"><b>City stage:</b> ${state.city.stage}</div>
+          <div class="mini"><b>Unemployed:</b> ${unemployed}</div>
+          <div class="mini"><b>Houses:</b> ${state.city.houses.length}</div>
+        `;
+      }
+    }
+
     function meterHtml(label, value, color) {
       const v = clamp(value, 0, 100);
       return `
@@ -1392,13 +1744,40 @@
       `;
     }
 
+    function updateCameraInsets() {
+      const rect = canvas.getBoundingClientRect();
+      let left = 0;
+      let right = 0;
+      if (ui.sidebar) {
+        const s = ui.sidebar.getBoundingClientRect();
+        if (s.right > rect.left) {
+          left = Math.max(0, s.right - rect.left + 8);
+        }
+      }
+      if (ui.rightbar) {
+        const r = ui.rightbar.getBoundingClientRect();
+        if (r.left < rect.right) {
+          right = Math.max(0, rect.right - r.left + 8);
+        }
+      }
+      const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+      const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+      camera.setInsets({
+        left: left * scaleX,
+        right: right * scaleX,
+        top: 12 * scaleY,
+        bottom: 12 * scaleY
+      });
+    }
+
     function resizeCanvas() {
       const rect = canvas.getBoundingClientRect();
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       canvas.width = Math.max(640, Math.floor(rect.width * dpr));
       canvas.height = Math.max(420, Math.floor(rect.height * dpr));
-      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingEnabled = false;
       camera.resize(canvas.width, canvas.height);
+      updateCameraInsets();
       updateZoomLabel();
     }
 
@@ -1419,26 +1798,80 @@
       if (!imageReady(img)) {
         return false;
       }
-      const cols = 4;
-      const rows = 4;
+      const looksLikeCutePlayerSheet = img.naturalWidth >= 192 && img.naturalHeight >= 320;
+      const cols = looksLikeCutePlayerSheet ? 3 : 4;
+      const rows = looksLikeCutePlayerSheet ? 5 : 4;
       const fw = Math.floor(img.naturalWidth / cols);
       const fh = Math.floor(img.naturalHeight / rows);
       const frame = Math.floor((state.absHours * 3 + person.id) % (cols * rows));
       const sx = (frame % cols) * fw;
       const sy = Math.floor(frame / cols) * fh;
-      const dw = 16;
-      const dh = 24;
+      const dw = looksLikeCutePlayerSheet ? 18 : 16;
+      const dh = looksLikeCutePlayerSheet ? 24 : 24;
       ctx.drawImage(img, sx, sy, fw, fh, person.x - dw * 0.5, person.y - dh * 0.78, dw, dh);
       return true;
     }
 
-    function drawBuilding(b, fill, stroke, label, locked = false, sprite = null) {
+    function generateTintedSprite(base, tintColor, tintAlpha = 0.18) {
+      if (!imageReady(base)) {
+        return null;
+      }
+      const c = document.createElement("canvas");
+      c.width = base.naturalWidth;
+      c.height = base.naturalHeight;
+      const cctx = c.getContext("2d");
+      cctx.imageSmoothingEnabled = false;
+      cctx.drawImage(base, 0, 0);
+      cctx.globalCompositeOperation = "source-atop";
+      cctx.globalAlpha = tintAlpha;
+      cctx.fillStyle = tintColor;
+      cctx.fillRect(0, 0, c.width, c.height);
+      cctx.globalCompositeOperation = "source-over";
+      cctx.globalAlpha = 1;
+      const out = new Image();
+      out.src = c.toDataURL("image/png");
+      return out;
+    }
+
+    function ensureGeneratedBuildingSprites() {
+      if (!imageReady(sprites.house)) {
+        return;
+      }
+      if (!generatedBuildingSprites.market) {
+        generatedBuildingSprites.market = generateTintedSprite(sprites.house, "#d8ab62", 0.2);
+      }
+      if (!generatedBuildingSprites.farm) {
+        generatedBuildingSprites.farm = generateTintedSprite(sprites.house, "#7fb063", 0.2);
+      }
+      if (!generatedBuildingSprites.townhall) {
+        generatedBuildingSprites.townhall = generateTintedSprite(sprites.house, "#7e8bb8", 0.2);
+      }
+      if (!generatedBuildingSprites.sawmill) {
+        generatedBuildingSprites.sawmill = generateTintedSprite(sprites.house, "#6f8a56", 0.2);
+      }
+      if (!generatedBuildingSprites.workshop) {
+        generatedBuildingSprites.workshop = generateTintedSprite(sprites.house, "#9b79b0", 0.2);
+      }
+      if (!generatedBuildingSprites.clinic) {
+        generatedBuildingSprites.clinic = generateTintedSprite(sprites.house, "#c98383", 0.2);
+      }
+    }
+
+    function drawBuilding(b, fill, stroke, label, locked = false, sprite = null, selected = false, icon = null) {
       ctx.fillStyle = locked ? "#5d625f" : fill;
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 2;
       ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.strokeRect(b.x, b.y, b.w, b.h);
       drawImageCover(sprite, b.x + 4, b.y + 4, b.w - 8, b.h - 8);
+      if (imageReady(icon)) {
+        drawImageCover(icon, b.x + b.w - 28, b.y + 6, 20, 20);
+      }
+      if (selected) {
+        ctx.strokeStyle = "#ffe9a8";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
+      }
       ctx.fillStyle = locked ? "#ced0ce" : "#f6f0df";
       ctx.font = "14px Trebuchet MS";
       ctx.textAlign = "center";
@@ -1446,13 +1879,31 @@
     }
 
     function renderMapBase() {
-      if (!drawImageCover(sprites.background, 0, 0, WORLD.width, WORLD.height)) {
+      ensureGeneratedBuildingSprites();
+      if (imageReady(sprites.background)) {
+        const pattern = ctx.createPattern(sprites.background, "repeat");
+        if (pattern) {
+          ctx.fillStyle = pattern;
+          ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+        } else {
+          drawImageCover(sprites.background, 0, 0, WORLD.width, WORLD.height);
+        }
+      } else {
         ctx.fillStyle = "#20453f";
         ctx.fillRect(0, 0, WORLD.width, WORLD.height);
       }
 
       // Paths
-      ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
+      if (imageReady(sprites.pathTile)) {
+        const pathPattern = ctx.createPattern(sprites.pathTile, "repeat");
+        if (pathPattern) {
+          ctx.strokeStyle = pathPattern;
+        } else {
+          ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
+        }
+      } else {
+        ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
+      }
       ctx.lineWidth = 22;
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -1466,13 +1917,19 @@
       ctx.stroke();
 
       // Home district
-      for (const h of state.city.houses) {
+      for (let i = 0; i < state.city.houses.length; i++) {
+        const h = state.city.houses[i];
         ctx.fillStyle = "#b78f66";
         ctx.strokeStyle = "#815f3b";
         ctx.lineWidth = 2;
         ctx.fillRect(h.x, h.y, h.w, h.h);
         ctx.strokeRect(h.x, h.y, h.w, h.h);
         drawImageCover(sprites.house, h.x + 6, h.y + 6, h.w - 12, h.h - 12);
+        if (isSelectedBuilding(`house:${i}`)) {
+          ctx.strokeStyle = "#ffe9a8";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(h.x - 2, h.y - 2, h.w + 4, h.h + 4);
+        }
       }
 
       // Resource patches
@@ -1521,12 +1978,12 @@
         ctx.fillText(`Wood ${f.wood.toFixed(0)}`, f.x, f.y + 4);
       }
 
-      drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, sprites.market);
-      drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, sprites.farm);
-      drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, sprites.townhall);
-      drawBuilding(BUILDINGS.sawmill, "#6787ab", "#3f5d7a", "Sawmill", !state.city.companies.sawmill, sprites.sawmill);
-      drawBuilding(BUILDINGS.workshop, "#8968ad", "#5d437a", "Workshop", !state.city.companies.workshop, sprites.workshop);
-      drawBuilding(BUILDINGS.clinic, "#ae6666", "#744545", "Clinic", !state.city.companies.clinic, sprites.clinic);
+      drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, generatedBuildingSprites.market || sprites.house, isSelectedBuilding("building:market"), sprites.iconMarket);
+      drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, generatedBuildingSprites.farm || sprites.house, isSelectedBuilding("building:farm"), sprites.iconFarm);
+      drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, generatedBuildingSprites.townhall || sprites.house, isSelectedBuilding("building:townhall"), sprites.iconTownhall);
+      drawBuilding(BUILDINGS.sawmill, "#6787ab", "#3f5d7a", "Sawmill", !state.city.companies.sawmill, generatedBuildingSprites.sawmill || sprites.house, isSelectedBuilding("building:sawmill"), sprites.iconSawmill);
+      drawBuilding(BUILDINGS.workshop, "#8968ad", "#5d437a", "Workshop", !state.city.companies.workshop, generatedBuildingSprites.workshop || sprites.house, isSelectedBuilding("building:workshop"), sprites.iconWorkshop);
+      drawBuilding(BUILDINGS.clinic, "#ae6666", "#744545", "Clinic", !state.city.companies.clinic, generatedBuildingSprites.clinic || sprites.house, isSelectedBuilding("building:clinic"), sprites.iconClinic);
 
       // Farm resources
       ctx.fillStyle = "#f3edc8";

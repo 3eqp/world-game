@@ -20,6 +20,12 @@ window.WorldGame.Camera = (() => {
       ox: 0,
       oy: 0
     };
+    const insets = {
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0
+    };
     const zoomAnchor = {
       sx: 0,
       sy: 0,
@@ -27,15 +33,43 @@ window.WorldGame.Camera = (() => {
       wy: world.height * 0.5
     };
 
+    function viewportCenterScreenX() {
+      const left = clamp(insets.left, 0, view.width);
+      const right = clamp(insets.right, 0, view.width);
+      const usableLeft = left;
+      const usableRight = Math.max(usableLeft + 1, view.width - right);
+      return (usableLeft + usableRight) * 0.5;
+    }
+
+    function viewportCenterScreenY() {
+      const top = clamp(insets.top, 0, view.height);
+      const bottom = clamp(insets.bottom, 0, view.height);
+      const usableTop = top;
+      const usableBottom = Math.max(usableTop + 1, view.height - bottom);
+      return (usableTop + usableBottom) * 0.5;
+    }
+
+    function usableWidth() {
+      const left = clamp(insets.left, 0, view.width);
+      const right = clamp(insets.right, 0, view.width);
+      return Math.max(1, view.width - left - right);
+    }
+
+    function usableHeight() {
+      const top = clamp(insets.top, 0, view.height);
+      const bottom = clamp(insets.bottom, 0, view.height);
+      return Math.max(1, view.height - top - bottom);
+    }
+
     function updateTransform() {
       view.scale = view.baseScale * view.zoom;
-      view.ox = view.width * 0.5 - view.centerX * view.scale;
-      view.oy = view.height * 0.5 - view.centerY * view.scale;
+      view.ox = viewportCenterScreenX() - view.centerX * view.scale;
+      view.oy = viewportCenterScreenY() - view.centerY * view.scale;
     }
 
     function clampCenter() {
-      const halfVisibleW = view.width / (2 * view.scale);
-      const halfVisibleH = view.height / (2 * view.scale);
+      const halfVisibleW = usableWidth() / (2 * view.scale);
+      const halfVisibleH = usableHeight() / (2 * view.scale);
       const slackW = Math.max(24, world.width * 0.06);
       const slackH = Math.max(24, world.height * 0.06);
 
@@ -67,6 +101,15 @@ window.WorldGame.Camera = (() => {
       if (shouldRecalcBaseScale) {
         view.baseScale = Math.min(view.width / world.width, view.height / world.height);
       }
+      clampCenter();
+      updateTransform();
+    }
+
+    function setInsets(nextInsets = {}) {
+      insets.left = Math.max(0, Number(nextInsets.left) || 0);
+      insets.right = Math.max(0, Number(nextInsets.right) || 0);
+      insets.top = Math.max(0, Number(nextInsets.top) || 0);
+      insets.bottom = Math.max(0, Number(nextInsets.bottom) || 0);
       clampCenter();
       updateTransform();
     }
@@ -157,6 +200,7 @@ window.WorldGame.Camera = (() => {
     return {
       view,
       resize,
+      setInsets,
       screenToWorld,
       panByWorld,
       panByPixels,

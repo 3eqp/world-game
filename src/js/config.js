@@ -1,7 +1,7 @@
 window.WorldGame = window.WorldGame || {};
 
 window.WorldGame.Config = Object.freeze({
-  WORLD: { width: 1600, height: 1000 },
+  WORLD: { width: 2800, height: 2600 },
   HOUSE_CAPACITY: 3,
   STORAGE_KEY: "world-game-save-v1",
   ZOOM: {
@@ -9,7 +9,7 @@ window.WorldGame.Config = Object.freeze({
     max: 3.2,
     step: 1.1,
     smoothness: 14,
-    wheelStrength: 0.00045
+    wheelStrength: 0.0009
   },
   PAN: {
     keyboardSpeed: 520
@@ -18,25 +18,32 @@ window.WorldGame.Config = Object.freeze({
     lockScaleOnResize: true
   },
   ASSETS: {
-    background: "https://cdn.phaserfiles.com/v385/assets/pics/platformer-backdrop.png",
-    personSheet: "https://opengameart.org/sites/default/files/person_sprite_sheet.png",
-    house: "https://cdn.phaserfiles.com/v385/assets/sprites/crate.png",
-    market: "https://cdn.phaserfiles.com/v385/assets/sprites/atari400.png",
-    farm: "https://cdn.phaserfiles.com/v385/assets/sprites/mushroom2.png",
-    townhall: "https://cdn.phaserfiles.com/v385/assets/sprites/bikkuriman.png",
-    sawmill: "https://cdn.phaserfiles.com/v385/assets/sprites/lemming.png",
-    workshop: "https://cdn.phaserfiles.com/v385/assets/sprites/healthbar.png",
-    clinic: "https://cdn.phaserfiles.com/v385/assets/sprites/ilkke.png",
-    forest: "https://cdn.phaserfiles.com/v385/assets/sprites/diamond.png",
-    wild: "https://cdn.phaserfiles.com/v385/assets/sprites/star.png"
+    background: "assets/cute/grass.png",
+    pathTile: "assets/cute/path.png",
+    personSheet: "assets/cute/player.png",
+    house: "assets/cute/house.png",
+    market: "assets/cute/chest.png",
+    farm: "assets/cute/farmland.png",
+    townhall: "assets/cute/bridge.png",
+    sawmill: "assets/cute/oak_tree_small.png",
+    workshop: "assets/cute/decor_sheet.png",
+    clinic: "assets/cute/cow.png",
+    forest: "assets/cute/oak_tree.png",
+    wild: "assets/cute/chicken.png",
+    iconMarket: "assets/cute/chest.png",
+    iconFarm: "assets/cute/farmland.png",
+    iconTownhall: "assets/cute/sheep.png",
+    iconSawmill: "assets/cute/oak_tree_small.png",
+    iconWorkshop: "assets/cute/pig.png",
+    iconClinic: "assets/cute/cow.png"
   },
   BUILDINGS: {
-    market: { x: 780, y: 470, w: 110, h: 80, name: "Market" },
-    farm: { x: 235, y: 610, w: 120, h: 90, name: "Farm" },
-    sawmill: { x: 1090, y: 250, w: 130, h: 90, name: "Sawmill" },
-    workshop: { x: 1210, y: 510, w: 120, h: 90, name: "Workshop" },
-    clinic: { x: 910, y: 705, w: 120, h: 80, name: "Clinic" },
-    townhall: { x: 665, y: 300, w: 120, h: 90, name: "Town Hall" }
+    market: { x: 1360, y: 860, w: 132, h: 94, name: "Market" },
+    farm: { x: 510, y: 1120, w: 135, h: 98, name: "Farm" },
+    sawmill: { x: 1900, y: 470, w: 150, h: 100, name: "Sawmill" },
+    workshop: { x: 2140, y: 960, w: 140, h: 96, name: "Workshop" },
+    clinic: { x: 1650, y: 1260, w: 140, h: 92, name: "Clinic" },
+    townhall: { x: 1180, y: 590, w: 142, h: 98, name: "Town Hall" }
   },
   ROLE_COLORS: {
     forager: "#d0d95c",

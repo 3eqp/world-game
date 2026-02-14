@@ -31,16 +31,8 @@
         <button id="speed6Btn">x6</button>
       </div>
 
-      <div class="controls controls-three">
-        <button id="zoomOutBtn">-</button>
-        <button id="zoomResetBtn">100%</button>
-        <button id="zoomInBtn">+</button>
-      </div>
-      <div class="mini zoom-text" id="zoomStat">Zoom: 100%</div>
-
-      <div class="controls controls-two">
+      <div class="controls">
         <button id="toolsMenuBtn">Tools</button>
-        <button id="toggleResourcesBtn">Resources</button>
       </div>
       <div class="person-card tools-panel hidden" id="toolsPanel">
         <h2>Resource Menu</h2>
@@ -72,13 +64,7 @@
 
       <div class="legend">
         <div><b>Person Colors</b></div>
-        <div class="legend-row"><span><span class="dot" style="background:#d0d95c"></span>Forager</span><span>Wild food/herbs</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#63b35d"></span>Farmer</span><span>Farm output</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#5f8f53"></span>Woodcutter</span><span>Forest logs</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#5fa3d1"></span>Sawmill</span><span>Logs -> planks</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#9d88d8"></span>Carpenter</span><span>Planks -> furniture</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#db7070"></span>Medic</span><span>Herbs -> medkits</span></div>
-        <div class="legend-row"><span><span class="dot" style="background:#9f9f9f"></span>Unemployed</span><span>No demand/work</span></div>
+        <div id="professionLegend"></div>
       </div>
 
       <div class="small-note">
@@ -96,6 +82,11 @@
       <div class="person-card" id="personCard">
         <h2>No person selected</h2>
         <div class="mini">Click any person on the map to inspect stats and needs.</div>
+      </div>
+
+      <div class="person-card" id="buildingCard">
+        <h2>No building selected</h2>
+        <div class="mini">Click a building on the map to inspect workers and production stats.</div>
       </div>
 
       <div class="person-card">
