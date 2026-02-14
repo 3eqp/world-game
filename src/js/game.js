@@ -49,6 +49,35 @@
       worldSettingsApplyBtn: document.getElementById("worldSettingsApplyBtn"),
       worldSettingsApplySaveBtn: document.getElementById("worldSettingsApplySaveBtn"),
       wsAutosaveInput: document.getElementById("wsAutosaveInput"),
+      wsLifeSpanDaysInput: document.getElementById("wsLifeSpanDaysInput"),
+      wsNeedHungerBaseInput: document.getElementById("wsNeedHungerBaseInput"),
+      wsNeedHungerWorkInput: document.getElementById("wsNeedHungerWorkInput"),
+      wsNeedHungerPenaltyInput: document.getElementById("wsNeedHungerPenaltyInput"),
+      wsNeedHealthDecayInput: document.getElementById("wsNeedHealthDecayInput"),
+      wsNeedHealthRegenInput: document.getElementById("wsNeedHealthRegenInput"),
+      wsNeedEatTriggerInput: document.getElementById("wsNeedEatTriggerInput"),
+      wsNeedEatFromInventoryInput: document.getElementById("wsNeedEatFromInventoryInput"),
+      wsNeedBuyFoodTriggerInput: document.getElementById("wsNeedBuyFoodTriggerInput"),
+      wsNeedEatExecuteInput: document.getElementById("wsNeedEatExecuteInput"),
+      wsNeedEatReliefInput: document.getElementById("wsNeedEatReliefInput"),
+      wsTradeSellRawFactorInput: document.getElementById("wsTradeSellRawFactorInput"),
+      wsTradeSellCraftFactorInput: document.getElementById("wsTradeSellCraftFactorInput"),
+      wsTradeSocialFoodPerPopInput: document.getElementById("wsTradeSocialFoodPerPopInput"),
+      wsTradeExportBatchInput: document.getElementById("wsTradeExportBatchInput"),
+      wsTradeExportReserveInput: document.getElementById("wsTradeExportReserveInput"),
+      wsDemandFoodPerPopInput: document.getElementById("wsDemandFoodPerPopInput"),
+      wsDemandHungerFactorInput: document.getElementById("wsDemandHungerFactorInput"),
+      wsDemandLogsPerPopInput: document.getElementById("wsDemandLogsPerPopInput"),
+      wsDemandHerbsPerPopInput: document.getElementById("wsDemandHerbsPerPopInput"),
+      wsDemandMedkitsPerPopInput: document.getElementById("wsDemandMedkitsPerPopInput"),
+      wsPriceRatioWeightInput: document.getElementById("wsPriceRatioWeightInput"),
+      wsPriceShortageWeightInput: document.getElementById("wsPriceShortageWeightInput"),
+      wsPriceSmoothingInput: document.getElementById("wsPriceSmoothingInput"),
+      wsJobsMaxChangeRatioInput: document.getElementById("wsJobsMaxChangeRatioInput"),
+      wsBirthBaseChanceInput: document.getElementById("wsBirthBaseChanceInput"),
+      wsBirthPerAdultBonusInput: document.getElementById("wsBirthPerAdultBonusInput"),
+      wsBirthMaxChanceInput: document.getElementById("wsBirthMaxChanceInput"),
+      wsBirthMaxPerDayInput: document.getElementById("wsBirthMaxPerDayInput"),
       wsRoadDecayInput: document.getElementById("wsRoadDecayInput"),
       wsRoadStepInput: document.getElementById("wsRoadStepInput"),
       wsRoadSegmentInput: document.getElementById("wsRoadSegmentInput"),
@@ -107,7 +136,7 @@
       KeyS: false,
       KeyD: false
     };
-    const LIFE_SPAN_DAYS = 100;
+    let LIFE_SPAN_DAYS = 100;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const ROAD = {
       cell: 24,
@@ -133,6 +162,46 @@
       orchardFood: 0.028,
       farmCrop: 0.085,
       farmFertility: 0.03
+    };
+    const GAMEPLAY = {
+      needs: {
+        hungerBase: 0.82,
+        hungerWorkBonus: 0.28,
+        hungerPenaltyBonus: 0.22,
+        healthBaseDecay: 0.07,
+        healthFedRegen: 0.03,
+        eatDecisionHunger: 32,
+        eatFromInventoryHunger: 28,
+        buyFoodHunger: 55,
+        eatExecuteHunger: 18,
+        hungerReliefPerFood: 46
+      },
+      trade: {
+        sellRawFactor: 0.9,
+        sellCraftFactor: 0.96,
+        socialFoodPerPop: 0.5,
+        exportLogReserve: 2,
+        exportLogBatch: 3
+      },
+      marketModel: {
+        foodPerPopBase: 2.2,
+        foodHungerFactor: 1.05,
+        logsPerPop: 0.16,
+        herbsPerPop: 0.24,
+        medkitsPerPop: 0.05,
+        priceRatioWeight: 0.88,
+        priceShortageWeight: 0.55,
+        priceSmoothingOldWeight: 0.55
+      },
+      jobs: {
+        maxChangeRatio: 0.22
+      },
+      births: {
+        baseChance: 0.05,
+        perAdultBonus: 0.008,
+        maxChance: 0.42,
+        maxPerDay: 2
+      }
     };
     const SHEET_ANIMS = Object.freeze({
       person: {
@@ -254,6 +323,47 @@
     function defaultWorldSettings() {
       return {
         autosaveIntervalSec: 20,
+        gameplay: {
+          lifeSpanDays: 100,
+          needs: {
+            hungerBase: 0.82,
+            hungerWorkBonus: 0.28,
+            hungerPenaltyBonus: 0.22,
+            healthBaseDecay: 0.07,
+            healthFedRegen: 0.03,
+            eatDecisionHunger: 32,
+            eatFromInventoryHunger: 28,
+            buyFoodHunger: 55,
+            eatExecuteHunger: 18,
+            hungerReliefPerFood: 46
+          },
+          trade: {
+            sellRawFactor: 0.9,
+            sellCraftFactor: 0.96,
+            socialFoodPerPop: 0.5,
+            exportLogBatch: 3,
+            exportLogReserve: 2
+          },
+          marketModel: {
+            foodPerPopBase: 2.2,
+            foodHungerFactor: 1.05,
+            logsPerPop: 0.16,
+            herbsPerPop: 0.24,
+            medkitsPerPop: 0.05,
+            priceRatioWeight: 0.88,
+            priceShortageWeight: 0.55,
+            priceSmoothingOldWeight: 0.55
+          },
+          jobs: {
+            maxChangeRatio: 0.22
+          },
+          births: {
+            baseChance: 0.05,
+            perAdultBonus: 0.008,
+            maxChance: 0.42,
+            maxPerDay: 2
+          }
+        },
         road: {
           decayPerHour: 0.1,
           addPerStep: 0.42,
@@ -280,6 +390,14 @@
     function cloneWorldSettings(settings) {
       return {
         autosaveIntervalSec: settings.autosaveIntervalSec,
+        gameplay: {
+          lifeSpanDays: settings.gameplay.lifeSpanDays,
+          needs: { ...settings.gameplay.needs },
+          trade: { ...settings.gameplay.trade },
+          marketModel: { ...settings.gameplay.marketModel },
+          jobs: { ...settings.gameplay.jobs },
+          births: { ...settings.gameplay.births }
+        },
         road: { ...settings.road },
         regen: { ...settings.regen },
         buildCosts: {
@@ -312,11 +430,58 @@
     function sanitizeWorldSettings(rawSettings) {
       const defaults = defaultWorldSettings();
       const source = rawSettings && typeof rawSettings === "object" ? rawSettings : {};
+      const rawGameplay = source.gameplay && typeof source.gameplay === "object" ? source.gameplay : {};
+      const rawNeeds = rawGameplay.needs && typeof rawGameplay.needs === "object" ? rawGameplay.needs : {};
+      const rawTrade = rawGameplay.trade && typeof rawGameplay.trade === "object" ? rawGameplay.trade : {};
+      const rawMarketModel = rawGameplay.marketModel && typeof rawGameplay.marketModel === "object" ? rawGameplay.marketModel : {};
+      const rawJobs = rawGameplay.jobs && typeof rawGameplay.jobs === "object" ? rawGameplay.jobs : {};
+      const rawBirths = rawGameplay.births && typeof rawGameplay.births === "object" ? rawGameplay.births : {};
       const rawRoad = source.road && typeof source.road === "object" ? source.road : {};
       const rawRegen = source.regen && typeof source.regen === "object" ? source.regen : {};
       const rawCosts = source.buildCosts && typeof source.buildCosts === "object" ? source.buildCosts : {};
       return {
         autosaveIntervalSec: sanitizeNumber(source.autosaveIntervalSec, defaults.autosaveIntervalSec, 5, 600, true),
+        gameplay: {
+          lifeSpanDays: sanitizeNumber(rawGameplay.lifeSpanDays, defaults.gameplay.lifeSpanDays, 20, 500, true),
+          needs: {
+            hungerBase: sanitizeNumber(rawNeeds.hungerBase, defaults.gameplay.needs.hungerBase, 0.05, 5),
+            hungerWorkBonus: sanitizeNumber(rawNeeds.hungerWorkBonus, defaults.gameplay.needs.hungerWorkBonus, 0, 3),
+            hungerPenaltyBonus: sanitizeNumber(rawNeeds.hungerPenaltyBonus, defaults.gameplay.needs.hungerPenaltyBonus, 0, 3),
+            healthBaseDecay: sanitizeNumber(rawNeeds.healthBaseDecay, defaults.gameplay.needs.healthBaseDecay, 0, 2),
+            healthFedRegen: sanitizeNumber(rawNeeds.healthFedRegen, defaults.gameplay.needs.healthFedRegen, 0, 1),
+            eatDecisionHunger: sanitizeNumber(rawNeeds.eatDecisionHunger, defaults.gameplay.needs.eatDecisionHunger, 0, 100, true),
+            eatFromInventoryHunger: sanitizeNumber(rawNeeds.eatFromInventoryHunger, defaults.gameplay.needs.eatFromInventoryHunger, 0, 100, true),
+            buyFoodHunger: sanitizeNumber(rawNeeds.buyFoodHunger, defaults.gameplay.needs.buyFoodHunger, 0, 100, true),
+            eatExecuteHunger: sanitizeNumber(rawNeeds.eatExecuteHunger, defaults.gameplay.needs.eatExecuteHunger, 0, 100, true),
+            hungerReliefPerFood: sanitizeNumber(rawNeeds.hungerReliefPerFood, defaults.gameplay.needs.hungerReliefPerFood, 1, 100, true)
+          },
+          trade: {
+            sellRawFactor: sanitizeNumber(rawTrade.sellRawFactor, defaults.gameplay.trade.sellRawFactor, 0.1, 1.5),
+            sellCraftFactor: sanitizeNumber(rawTrade.sellCraftFactor, defaults.gameplay.trade.sellCraftFactor, 0.1, 1.5),
+            socialFoodPerPop: sanitizeNumber(rawTrade.socialFoodPerPop, defaults.gameplay.trade.socialFoodPerPop, 0, 3),
+            exportLogBatch: sanitizeNumber(rawTrade.exportLogBatch, defaults.gameplay.trade.exportLogBatch, 0, 50, true),
+            exportLogReserve: sanitizeNumber(rawTrade.exportLogReserve, defaults.gameplay.trade.exportLogReserve, 0, 100, true)
+          },
+          marketModel: {
+            foodPerPopBase: sanitizeNumber(rawMarketModel.foodPerPopBase, defaults.gameplay.marketModel.foodPerPopBase, 0.2, 8),
+            foodHungerFactor: sanitizeNumber(rawMarketModel.foodHungerFactor, defaults.gameplay.marketModel.foodHungerFactor, 0, 4),
+            logsPerPop: sanitizeNumber(rawMarketModel.logsPerPop, defaults.gameplay.marketModel.logsPerPop, 0, 3),
+            herbsPerPop: sanitizeNumber(rawMarketModel.herbsPerPop, defaults.gameplay.marketModel.herbsPerPop, 0, 3),
+            medkitsPerPop: sanitizeNumber(rawMarketModel.medkitsPerPop, defaults.gameplay.marketModel.medkitsPerPop, 0, 3),
+            priceRatioWeight: sanitizeNumber(rawMarketModel.priceRatioWeight, defaults.gameplay.marketModel.priceRatioWeight, 0.1, 3),
+            priceShortageWeight: sanitizeNumber(rawMarketModel.priceShortageWeight, defaults.gameplay.marketModel.priceShortageWeight, 0, 3),
+            priceSmoothingOldWeight: sanitizeNumber(rawMarketModel.priceSmoothingOldWeight, defaults.gameplay.marketModel.priceSmoothingOldWeight, 0.05, 0.95)
+          },
+          jobs: {
+            maxChangeRatio: sanitizeNumber(rawJobs.maxChangeRatio, defaults.gameplay.jobs.maxChangeRatio, 0.02, 1)
+          },
+          births: {
+            baseChance: sanitizeNumber(rawBirths.baseChance, defaults.gameplay.births.baseChance, 0, 1),
+            perAdultBonus: sanitizeNumber(rawBirths.perAdultBonus, defaults.gameplay.births.perAdultBonus, 0, 0.2),
+            maxChance: sanitizeNumber(rawBirths.maxChance, defaults.gameplay.births.maxChance, 0, 1),
+            maxPerDay: sanitizeNumber(rawBirths.maxPerDay, defaults.gameplay.births.maxPerDay, 0, 10, true)
+          }
+        },
         road: {
           decayPerHour: sanitizeNumber(rawRoad.decayPerHour, defaults.road.decayPerHour, 0.001, 2),
           addPerStep: sanitizeNumber(rawRoad.addPerStep, defaults.road.addPerStep, 0.05, 5),
@@ -343,6 +508,40 @@
     function applyWorldSettings(rawSettings) {
       const next = sanitizeWorldSettings(rawSettings);
       autosaveIntervalSec = next.autosaveIntervalSec;
+      LIFE_SPAN_DAYS = next.gameplay.lifeSpanDays;
+      GAMEPLAY.needs.hungerBase = next.gameplay.needs.hungerBase;
+      GAMEPLAY.needs.hungerWorkBonus = next.gameplay.needs.hungerWorkBonus;
+      GAMEPLAY.needs.hungerPenaltyBonus = next.gameplay.needs.hungerPenaltyBonus;
+      GAMEPLAY.needs.healthBaseDecay = next.gameplay.needs.healthBaseDecay;
+      GAMEPLAY.needs.healthFedRegen = next.gameplay.needs.healthFedRegen;
+      GAMEPLAY.needs.eatDecisionHunger = next.gameplay.needs.eatDecisionHunger;
+      GAMEPLAY.needs.eatFromInventoryHunger = next.gameplay.needs.eatFromInventoryHunger;
+      GAMEPLAY.needs.buyFoodHunger = next.gameplay.needs.buyFoodHunger;
+      GAMEPLAY.needs.eatExecuteHunger = next.gameplay.needs.eatExecuteHunger;
+      GAMEPLAY.needs.hungerReliefPerFood = next.gameplay.needs.hungerReliefPerFood;
+
+      GAMEPLAY.trade.sellRawFactor = next.gameplay.trade.sellRawFactor;
+      GAMEPLAY.trade.sellCraftFactor = next.gameplay.trade.sellCraftFactor;
+      GAMEPLAY.trade.socialFoodPerPop = next.gameplay.trade.socialFoodPerPop;
+      GAMEPLAY.trade.exportLogBatch = next.gameplay.trade.exportLogBatch;
+      GAMEPLAY.trade.exportLogReserve = next.gameplay.trade.exportLogReserve;
+
+      GAMEPLAY.marketModel.foodPerPopBase = next.gameplay.marketModel.foodPerPopBase;
+      GAMEPLAY.marketModel.foodHungerFactor = next.gameplay.marketModel.foodHungerFactor;
+      GAMEPLAY.marketModel.logsPerPop = next.gameplay.marketModel.logsPerPop;
+      GAMEPLAY.marketModel.herbsPerPop = next.gameplay.marketModel.herbsPerPop;
+      GAMEPLAY.marketModel.medkitsPerPop = next.gameplay.marketModel.medkitsPerPop;
+      GAMEPLAY.marketModel.priceRatioWeight = next.gameplay.marketModel.priceRatioWeight;
+      GAMEPLAY.marketModel.priceShortageWeight = next.gameplay.marketModel.priceShortageWeight;
+      GAMEPLAY.marketModel.priceSmoothingOldWeight = next.gameplay.marketModel.priceSmoothingOldWeight;
+
+      GAMEPLAY.jobs.maxChangeRatio = next.gameplay.jobs.maxChangeRatio;
+
+      GAMEPLAY.births.baseChance = next.gameplay.births.baseChance;
+      GAMEPLAY.births.perAdultBonus = next.gameplay.births.perAdultBonus;
+      GAMEPLAY.births.maxChance = next.gameplay.births.maxChance;
+      GAMEPLAY.births.maxPerDay = next.gameplay.births.maxPerDay;
+
       ROAD.decayPerHour = next.road.decayPerHour;
       ROAD.addPerStep = next.road.addPerStep;
       ROAD.addPerSegment = next.road.addPerSegment;
@@ -365,6 +564,73 @@
         autosaveTimer = 0;
       }
       return next;
+    }
+
+    function runtimeWorldSettings() {
+      return {
+        autosaveIntervalSec,
+        gameplay: {
+          lifeSpanDays: LIFE_SPAN_DAYS,
+          needs: {
+            hungerBase: GAMEPLAY.needs.hungerBase,
+            hungerWorkBonus: GAMEPLAY.needs.hungerWorkBonus,
+            hungerPenaltyBonus: GAMEPLAY.needs.hungerPenaltyBonus,
+            healthBaseDecay: GAMEPLAY.needs.healthBaseDecay,
+            healthFedRegen: GAMEPLAY.needs.healthFedRegen,
+            eatDecisionHunger: GAMEPLAY.needs.eatDecisionHunger,
+            eatFromInventoryHunger: GAMEPLAY.needs.eatFromInventoryHunger,
+            buyFoodHunger: GAMEPLAY.needs.buyFoodHunger,
+            eatExecuteHunger: GAMEPLAY.needs.eatExecuteHunger,
+            hungerReliefPerFood: GAMEPLAY.needs.hungerReliefPerFood
+          },
+          trade: {
+            sellRawFactor: GAMEPLAY.trade.sellRawFactor,
+            sellCraftFactor: GAMEPLAY.trade.sellCraftFactor,
+            socialFoodPerPop: GAMEPLAY.trade.socialFoodPerPop,
+            exportLogBatch: GAMEPLAY.trade.exportLogBatch,
+            exportLogReserve: GAMEPLAY.trade.exportLogReserve
+          },
+          marketModel: {
+            foodPerPopBase: GAMEPLAY.marketModel.foodPerPopBase,
+            foodHungerFactor: GAMEPLAY.marketModel.foodHungerFactor,
+            logsPerPop: GAMEPLAY.marketModel.logsPerPop,
+            herbsPerPop: GAMEPLAY.marketModel.herbsPerPop,
+            medkitsPerPop: GAMEPLAY.marketModel.medkitsPerPop,
+            priceRatioWeight: GAMEPLAY.marketModel.priceRatioWeight,
+            priceShortageWeight: GAMEPLAY.marketModel.priceShortageWeight,
+            priceSmoothingOldWeight: GAMEPLAY.marketModel.priceSmoothingOldWeight
+          },
+          jobs: {
+            maxChangeRatio: GAMEPLAY.jobs.maxChangeRatio
+          },
+          births: {
+            baseChance: GAMEPLAY.births.baseChance,
+            perAdultBonus: GAMEPLAY.births.perAdultBonus,
+            maxChance: GAMEPLAY.births.maxChance,
+            maxPerDay: GAMEPLAY.births.maxPerDay
+          }
+        },
+        road: {
+          decayPerHour: ROAD.decayPerHour,
+          addPerStep: ROAD.addPerStep,
+          addPerSegment: ROAD.addPerSegment,
+          drawThreshold: ROAD.drawThreshold
+        },
+        regen: {
+          forest: REGEN.forest,
+          wildFood: REGEN.wildFood,
+          wildHerbs: REGEN.wildHerbs,
+          orchardFood: REGEN.orchardFood,
+          farmCrop: REGEN.farmCrop,
+          farmFertility: REGEN.farmFertility
+        },
+        buildCosts: {
+          townhall: { ...BUILD_COSTS.townhall },
+          market: { ...BUILD_COSTS.market },
+          farm: { ...BUILD_COSTS.farm },
+          house: { ...BUILD_COSTS.house }
+        }
+      };
     }
 
     function clamp(v, min, max) {
@@ -579,6 +845,10 @@
         ui.resourceMapBtn.classList.toggle("active", uiState.resourceView === "map");
         ui.resourceWorldBtn.classList.toggle("active", uiState.resourceView === "world");
       }
+      if (ui.worldSettingsBtn) {
+        ui.worldSettingsBtn.classList.toggle("active", uiState.worldSettingsOpen);
+        ui.worldSettingsBtn.textContent = uiState.worldSettingsOpen ? "Close Settings" : "World Settings";
+      }
       if (ui.worldSettingsModal) {
         ui.worldSettingsModal.classList.toggle("hidden", !uiState.worldSettingsOpen);
       }
@@ -616,6 +886,47 @@
     function readWorldSettingsFromForm() {
       return {
         autosaveIntervalSec: ui.wsAutosaveInput ? ui.wsAutosaveInput.value : undefined,
+        gameplay: {
+          lifeSpanDays: ui.wsLifeSpanDaysInput ? ui.wsLifeSpanDaysInput.value : undefined,
+          needs: {
+            hungerBase: ui.wsNeedHungerBaseInput ? ui.wsNeedHungerBaseInput.value : undefined,
+            hungerWorkBonus: ui.wsNeedHungerWorkInput ? ui.wsNeedHungerWorkInput.value : undefined,
+            hungerPenaltyBonus: ui.wsNeedHungerPenaltyInput ? ui.wsNeedHungerPenaltyInput.value : undefined,
+            healthBaseDecay: ui.wsNeedHealthDecayInput ? ui.wsNeedHealthDecayInput.value : undefined,
+            healthFedRegen: ui.wsNeedHealthRegenInput ? ui.wsNeedHealthRegenInput.value : undefined,
+            eatDecisionHunger: ui.wsNeedEatTriggerInput ? ui.wsNeedEatTriggerInput.value : undefined,
+            eatFromInventoryHunger: ui.wsNeedEatFromInventoryInput ? ui.wsNeedEatFromInventoryInput.value : undefined,
+            buyFoodHunger: ui.wsNeedBuyFoodTriggerInput ? ui.wsNeedBuyFoodTriggerInput.value : undefined,
+            eatExecuteHunger: ui.wsNeedEatExecuteInput ? ui.wsNeedEatExecuteInput.value : undefined,
+            hungerReliefPerFood: ui.wsNeedEatReliefInput ? ui.wsNeedEatReliefInput.value : undefined
+          },
+          trade: {
+            sellRawFactor: ui.wsTradeSellRawFactorInput ? ui.wsTradeSellRawFactorInput.value : undefined,
+            sellCraftFactor: ui.wsTradeSellCraftFactorInput ? ui.wsTradeSellCraftFactorInput.value : undefined,
+            socialFoodPerPop: ui.wsTradeSocialFoodPerPopInput ? ui.wsTradeSocialFoodPerPopInput.value : undefined,
+            exportLogBatch: ui.wsTradeExportBatchInput ? ui.wsTradeExportBatchInput.value : undefined,
+            exportLogReserve: ui.wsTradeExportReserveInput ? ui.wsTradeExportReserveInput.value : undefined
+          },
+          marketModel: {
+            foodPerPopBase: ui.wsDemandFoodPerPopInput ? ui.wsDemandFoodPerPopInput.value : undefined,
+            foodHungerFactor: ui.wsDemandHungerFactorInput ? ui.wsDemandHungerFactorInput.value : undefined,
+            logsPerPop: ui.wsDemandLogsPerPopInput ? ui.wsDemandLogsPerPopInput.value : undefined,
+            herbsPerPop: ui.wsDemandHerbsPerPopInput ? ui.wsDemandHerbsPerPopInput.value : undefined,
+            medkitsPerPop: ui.wsDemandMedkitsPerPopInput ? ui.wsDemandMedkitsPerPopInput.value : undefined,
+            priceRatioWeight: ui.wsPriceRatioWeightInput ? ui.wsPriceRatioWeightInput.value : undefined,
+            priceShortageWeight: ui.wsPriceShortageWeightInput ? ui.wsPriceShortageWeightInput.value : undefined,
+            priceSmoothingOldWeight: ui.wsPriceSmoothingInput ? ui.wsPriceSmoothingInput.value : undefined
+          },
+          jobs: {
+            maxChangeRatio: ui.wsJobsMaxChangeRatioInput ? ui.wsJobsMaxChangeRatioInput.value : undefined
+          },
+          births: {
+            baseChance: ui.wsBirthBaseChanceInput ? ui.wsBirthBaseChanceInput.value : undefined,
+            perAdultBonus: ui.wsBirthPerAdultBonusInput ? ui.wsBirthPerAdultBonusInput.value : undefined,
+            maxChance: ui.wsBirthMaxChanceInput ? ui.wsBirthMaxChanceInput.value : undefined,
+            maxPerDay: ui.wsBirthMaxPerDayInput ? ui.wsBirthMaxPerDayInput.value : undefined
+          }
+        },
         road: {
           decayPerHour: ui.wsRoadDecayInput ? ui.wsRoadDecayInput.value : undefined,
           addPerStep: ui.wsRoadStepInput ? ui.wsRoadStepInput.value : undefined,
@@ -659,8 +970,41 @@
       if (!ui.wsAutosaveInput) {
         return;
       }
-      const settings = sanitizeWorldSettings(state.worldSettings);
+      const settings = sanitizeWorldSettings(runtimeWorldSettings());
       ui.wsAutosaveInput.value = formatForInput(settings.autosaveIntervalSec, 0);
+      ui.wsLifeSpanDaysInput.value = formatForInput(settings.gameplay.lifeSpanDays, 0);
+
+      ui.wsNeedHungerBaseInput.value = formatForInput(settings.gameplay.needs.hungerBase);
+      ui.wsNeedHungerWorkInput.value = formatForInput(settings.gameplay.needs.hungerWorkBonus);
+      ui.wsNeedHungerPenaltyInput.value = formatForInput(settings.gameplay.needs.hungerPenaltyBonus);
+      ui.wsNeedHealthDecayInput.value = formatForInput(settings.gameplay.needs.healthBaseDecay);
+      ui.wsNeedHealthRegenInput.value = formatForInput(settings.gameplay.needs.healthFedRegen);
+      ui.wsNeedEatTriggerInput.value = formatForInput(settings.gameplay.needs.eatDecisionHunger, 0);
+      ui.wsNeedEatFromInventoryInput.value = formatForInput(settings.gameplay.needs.eatFromInventoryHunger, 0);
+      ui.wsNeedBuyFoodTriggerInput.value = formatForInput(settings.gameplay.needs.buyFoodHunger, 0);
+      ui.wsNeedEatExecuteInput.value = formatForInput(settings.gameplay.needs.eatExecuteHunger, 0);
+      ui.wsNeedEatReliefInput.value = formatForInput(settings.gameplay.needs.hungerReliefPerFood, 0);
+
+      ui.wsTradeSellRawFactorInput.value = formatForInput(settings.gameplay.trade.sellRawFactor);
+      ui.wsTradeSellCraftFactorInput.value = formatForInput(settings.gameplay.trade.sellCraftFactor);
+      ui.wsTradeSocialFoodPerPopInput.value = formatForInput(settings.gameplay.trade.socialFoodPerPop);
+      ui.wsTradeExportBatchInput.value = formatForInput(settings.gameplay.trade.exportLogBatch, 0);
+      ui.wsTradeExportReserveInput.value = formatForInput(settings.gameplay.trade.exportLogReserve, 0);
+
+      ui.wsDemandFoodPerPopInput.value = formatForInput(settings.gameplay.marketModel.foodPerPopBase);
+      ui.wsDemandHungerFactorInput.value = formatForInput(settings.gameplay.marketModel.foodHungerFactor);
+      ui.wsDemandLogsPerPopInput.value = formatForInput(settings.gameplay.marketModel.logsPerPop);
+      ui.wsDemandHerbsPerPopInput.value = formatForInput(settings.gameplay.marketModel.herbsPerPop);
+      ui.wsDemandMedkitsPerPopInput.value = formatForInput(settings.gameplay.marketModel.medkitsPerPop);
+      ui.wsPriceRatioWeightInput.value = formatForInput(settings.gameplay.marketModel.priceRatioWeight);
+      ui.wsPriceShortageWeightInput.value = formatForInput(settings.gameplay.marketModel.priceShortageWeight);
+      ui.wsPriceSmoothingInput.value = formatForInput(settings.gameplay.marketModel.priceSmoothingOldWeight);
+
+      ui.wsJobsMaxChangeRatioInput.value = formatForInput(settings.gameplay.jobs.maxChangeRatio);
+      ui.wsBirthBaseChanceInput.value = formatForInput(settings.gameplay.births.baseChance);
+      ui.wsBirthPerAdultBonusInput.value = formatForInput(settings.gameplay.births.perAdultBonus);
+      ui.wsBirthMaxChanceInput.value = formatForInput(settings.gameplay.births.maxChance);
+      ui.wsBirthMaxPerDayInput.value = formatForInput(settings.gameplay.births.maxPerDay, 0);
       ui.wsRoadDecayInput.value = formatForInput(settings.road.decayPerHour);
       ui.wsRoadStepInput.value = formatForInput(settings.road.addPerStep);
       ui.wsRoadSegmentInput.value = formatForInput(settings.road.addPerSegment);
@@ -695,6 +1039,8 @@
       if (uiState.worldSettingsOpen) {
         fillWorldSettingsForm();
         resetMovementKeys();
+        isDragging = false;
+        canvas.classList.remove("is-grabbing");
       }
       syncUiToggles();
     }
@@ -787,7 +1133,7 @@
     }
 
     function startNewSimulation() {
-      const currentSettings = cloneWorldSettings(sanitizeWorldSettings(state.worldSettings));
+      const currentSettings = cloneWorldSettings(sanitizeWorldSettings(runtimeWorldSettings()));
       state = createInitialState(true);
       applyWorldSettings(currentSettings);
       initPopulation(Math.floor(rand(6, 11)));
@@ -967,7 +1313,7 @@
 
       if (ui.worldSettingsBtn) {
         ui.worldSettingsBtn.addEventListener("click", () => {
-          setWorldSettingsModalOpen(true);
+          setWorldSettingsModalOpen(!uiState.worldSettingsOpen);
         });
       }
 
@@ -1641,11 +1987,11 @@
       if (person.health < 55 && person.inventory.medkits > 0) {
         return createTask("use_medkit", null, 0.1);
       }
-      if (person.hunger >= 32) {
-        if (person.inventory.food > 0 && person.hunger >= 28) {
+      if (person.hunger >= GAMEPLAY.needs.eatDecisionHunger) {
+        if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
           return createTask("eat_food", null, 0.1);
         }
-        if (isBuildingBuilt("market") && person.hunger >= 55 && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
+        if (isBuildingBuilt("market") && person.hunger >= GAMEPLAY.needs.buyFoodHunger && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
           return createTask("buy_food", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.5);
         }
       }
@@ -1660,9 +2006,9 @@
       const farm = state.resources.farm;
 
       if (task.type === "eat_food") {
-        if (person.inventory.food > 0 && person.hunger >= 18) {
+        if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatExecuteHunger) {
           person.inventory.food -= 1;
-          person.hunger = clamp(person.hunger - 46, 0, 100);
+          person.hunger = clamp(person.hunger - GAMEPLAY.needs.hungerReliefPerFood, 0, 100);
         }
         return;
       }
@@ -1708,7 +2054,8 @@
           if (qty <= 0) {
             continue;
           }
-          const unit = Math.max(1, Math.floor(market.prices[good] * (good === "logs" || good === "herbs" ? 0.9 : 0.96)));
+          const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
+          const unit = Math.max(1, Math.floor(market.prices[good] * factor));
           const canBuyUnits = Math.floor(market.treasury / unit);
           const sold = Math.min(qty, canBuyUnits);
           if (sold <= 0) {
@@ -1827,13 +2174,13 @@
       person.ageDays += dtHours / 24;
 
       const workLoad = person.task && person.task.type !== "idle" ? 1 : 0;
-      person.hunger = clamp(person.hunger + dtHours * (0.82 + workLoad * 0.28), 0, 100);
+      person.hunger = clamp(person.hunger + dtHours * (GAMEPLAY.needs.hungerBase + workLoad * GAMEPLAY.needs.hungerWorkBonus), 0, 100);
       if (person.switchPenaltyHours > 0) {
         person.switchPenaltyHours = Math.max(0, person.switchPenaltyHours - dtHours);
-        person.hunger = clamp(person.hunger + dtHours * 0.22, 0, 100);
+        person.hunger = clamp(person.hunger + dtHours * GAMEPLAY.needs.hungerPenaltyBonus, 0, 100);
       }
 
-      let healthDecay = dtHours * 0.07;
+      let healthDecay = dtHours * GAMEPLAY.needs.healthBaseDecay;
       if (person.ageDays > 60) {
         healthDecay += dtHours * (person.ageDays - 60) * 0.0025;
       }
@@ -1853,7 +2200,7 @@
       person.health = clamp(person.health - healthDecay, 0, 100);
 
       if (person.hunger <= 24 && person.health < 95) {
-        person.health = clamp(person.health + dtHours * 0.03, 0, 100);
+        person.health = clamp(person.health + dtHours * GAMEPLAY.needs.healthFedRegen, 0, 100);
       }
     }
 
@@ -1903,11 +2250,11 @@
       const weakPeople = state.people.filter((p) => p.health <= 50).length;
       const hungerPressure = pop > 0 ? hungryPeople / pop : 0;
       const healthPressure = pop > 0 ? weakPeople / pop : 0;
-      const foodNeed = Math.ceil(pop * (2.2 + hungerPressure * 1.05) + 4);
-      const logsNeed = Math.ceil(8 + constructionNeed * 8 + pop * 0.16);
-      const herbsNeed = Math.ceil(pop * 0.24 + weakPeople * 0.9 + hungryPeople * 0.2);
-      const medkitsNeed = Math.ceil(pop * 0.05 + weakPeople * 0.7 + healthPressure * pop * 0.45);
-      const planksNeed = Math.ceil(constructionNeed * 2 + logsNeed * 0.16);
+      const foodNeed = Math.ceil(pop * (GAMEPLAY.marketModel.foodPerPopBase + hungerPressure * GAMEPLAY.marketModel.foodHungerFactor) + 4);
+      const logsNeed = Math.ceil(8 + constructionNeed * 8 + pop * GAMEPLAY.marketModel.logsPerPop);
+      const herbsNeed = Math.ceil(pop * GAMEPLAY.marketModel.herbsPerPop + weakPeople * 0.9 + hungryPeople * 0.2);
+      const medkitsNeed = Math.ceil(pop * GAMEPLAY.marketModel.medkitsPerPop + weakPeople * 0.7 + healthPressure * pop * 0.45);
+      const planksNeed = Math.ceil(constructionNeed * 2 + logsNeed * GAMEPLAY.marketModel.logsPerPop);
       const furnitureNeed = Math.ceil(houses * 0.4 + pop * 0.08);
 
       state.market.demand.food = Math.max(4, foodNeed);
@@ -1926,12 +2273,13 @@
         const shortageRatio = demand / supply;
         const shortageBoost = shortage / demand;
         const targetMultiplier = clamp(
-          0.6 + shortageRatio * 0.88 + shortageBoost * 0.55,
+          0.6 + shortageRatio * GAMEPLAY.marketModel.priceRatioWeight + shortageBoost * GAMEPLAY.marketModel.priceShortageWeight,
           0.45,
           3.25
         );
         const targetPrice = basePrice * targetMultiplier;
-        const smoothed = prevPrice * 0.55 + targetPrice * 0.45;
+        const oldWeight = GAMEPLAY.marketModel.priceSmoothingOldWeight;
+        const smoothed = prevPrice * oldWeight + targetPrice * (1 - oldWeight);
         state.market.prices[good] = Math.max(1, Math.round(smoothed));
       }
     }
@@ -2038,7 +2386,7 @@
         return candidates.length > 0 ? candidates[0] : null;
       }
 
-      const maxChanges = Math.max(1, Math.floor(pop * 0.22));
+      const maxChanges = Math.max(1, Math.floor(pop * GAMEPLAY.jobs.maxChangeRatio));
       let changes = 0;
       for (const role of priority) {
         const target = clamp(wants[role], 0, pop);
@@ -2182,7 +2530,7 @@
       }
 
       if (isBuildingBuilt("market")) {
-        const socialFood = Math.min(state.market.stocks.food, Math.ceil(pop * 0.5));
+        const socialFood = Math.min(state.market.stocks.food, Math.ceil(pop * GAMEPLAY.trade.socialFoodPerPop));
         if (socialFood > 0) {
           state.market.stocks.food -= socialFood;
           const spend = socialFood * state.market.prices.food;
@@ -2197,8 +2545,12 @@
       const freeSlots = Math.max(0, capacity - state.people.length);
       if (freeSlots > 0) {
         const wellFedAdults = state.people.filter((p) => p.ageDays >= 18 && p.hunger < 55 && p.health > 45).length;
-        const birthChance = clamp(0.05 + wellFedAdults * 0.008, 0.05, 0.42);
-        const maxBirths = Math.min(freeSlots, 2);
+        const birthChance = clamp(
+          GAMEPLAY.births.baseChance + wellFedAdults * GAMEPLAY.births.perAdultBonus,
+          GAMEPLAY.births.baseChance,
+          GAMEPLAY.births.maxChance
+        );
+        const maxBirths = Math.min(freeSlots, GAMEPLAY.births.maxPerDay);
         let born = 0;
         for (let i = 0; i < maxBirths; i++) {
           if (Math.random() < birthChance) {
@@ -2234,8 +2586,8 @@
       }
 
       if (hourAbsolute % 12 === 0 && isBuildingBuilt("market")) {
-        const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - 2);
-        const sold = Math.min(exportable, 3);
+        const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - GAMEPLAY.trade.exportLogReserve);
+        const sold = Math.min(exportable, GAMEPLAY.trade.exportLogBatch);
         if (sold > 0) {
           state.market.stocks.logs -= sold;
           state.market.treasury += sold * state.market.prices.logs;
