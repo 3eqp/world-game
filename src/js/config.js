@@ -40,18 +40,12 @@ window.WorldGame.Config = Object.freeze({
   BUILDINGS: {
     market: { x: 1360, y: 860, w: 132, h: 94, name: "Market" },
     farm: { x: 510, y: 1120, w: 135, h: 98, name: "Farm" },
-    sawmill: { x: 1900, y: 470, w: 150, h: 100, name: "Sawmill" },
-    workshop: { x: 2140, y: 960, w: 140, h: 96, name: "Workshop" },
-    clinic: { x: 1650, y: 1260, w: 140, h: 92, name: "Clinic" },
     townhall: { x: 1180, y: 590, w: 142, h: 98, name: "Town Hall" }
   },
   ROLE_COLORS: {
     forager: "#d0d95c",
     farmer: "#63b35d",
     woodcutter: "#5f8f53",
-    sawmill_worker: "#5fa3d1",
-    carpenter: "#9d88d8",
-    medic: "#db7070",
     unemployed: "#9f9f9f"
   },
   GOODS: ["food", "logs", "planks", "furniture", "herbs", "medkits"],

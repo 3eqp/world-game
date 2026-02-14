@@ -51,6 +51,7 @@
       dayStat: document.getElementById("dayStat"),
       marketCashStat: document.getElementById("marketCashStat"),
       overlayText: document.getElementById("overlayText"),
+      professionLegend: document.getElementById("professionLegend"),
       personCard: document.getElementById("personCard"),
       buildingCard: document.getElementById("buildingCard"),
       marketTable: document.getElementById("marketTable"),
@@ -79,16 +80,22 @@
       KeyD: false
     };
     const LIFE_SPAN_DAYS = 100;
-    const PROFESSIONS = ["forager", "farmer", "woodcutter", "sawmill_worker", "carpenter", "medic"];
+    const PROFESSIONS = ["forager", "farmer", "woodcutter"];
+    const ROAD = {
+      cell: 48,
+      clickRadius: 26,
+      drawThreshold: 1.2,
+      clickThreshold: 2.2,
+      decayPerHour: 0.12,
+      addPerStep: 0.62,
+      maxHeat: 48
+    };
 
     function createExperienceProfile(seedRole) {
       const profile = {
         forager: 0,
         farmer: 0,
-        woodcutter: 0,
-        sawmill_worker: 0,
-        carpenter: 0,
-        medic: 0
+        woodcutter: 0
       };
       if (seedRole && Object.prototype.hasOwnProperty.call(profile, seedRole)) {
         profile[seedRole] = rand(16, 34);
@@ -106,20 +113,18 @@
         day: 1,
         selectedId: null,
         selectedBuilding: null,
+        selectedObject: null,
         nextPersonId: 1,
         people: [],
         graves: [],
         eventLog: [],
+        roadHeat: {},
         city: {
           stage: "Subsistence",
           treasury: Math.round(380 * moneyScale),
           houses: [],
           furnitureLevel: Math.round(5 * resourceScale),
-          companies: {
-            sawmill: false,
-            workshop: false,
-            clinic: false
-          }
+          companies: {}
         },
         market: {
           treasury: Math.round(2400 * moneyScale),
@@ -262,7 +267,7 @@
 
       state = { ...base, ...incoming };
       state.city = { ...base.city, ...incomingCity };
-      state.city.companies = { ...base.city.companies, ...incomingCompanies };
+      state.city.companies = {};
 
       state.market = { ...base.market, ...incomingMarket };
       state.market.stocks = { ...base.market.stocks, ...(incomingMarket.stocks || {}) };
@@ -274,11 +279,22 @@
       state.resources.forests = Array.isArray(incomingResources.forests) ? incomingResources.forests : base.resources.forests;
       state.resources.orchards = Array.isArray(incomingResources.orchards) ? incomingResources.orchards : base.resources.orchards;
       state.resources.wild = Array.isArray(incomingResources.wild) ? incomingResources.wild : base.resources.wild;
+      state.roadHeat = incoming.roadHeat && typeof incoming.roadHeat === "object" ? { ...incoming.roadHeat } : {};
+      for (const k of Object.keys(state.roadHeat)) {
+        const v = Number(state.roadHeat[k]);
+        if (!Number.isFinite(v) || v <= 0.01) {
+          delete state.roadHeat[k];
+          continue;
+        }
+        state.roadHeat[k] = clamp(v, 0, ROAD.maxHeat);
+      }
 
       state.people = Array.isArray(incoming.people) ? incoming.people.map((p) => ({
         ...p,
-        role: typeof p.role === "string" ? p.role : "unemployed",
-        baseProfession: typeof p.baseProfession === "string" ? p.baseProfession : (typeof p.role === "string" ? p.role : pick(PROFESSIONS)),
+        role: (typeof p.role === "string" && PROFESSIONS.includes(p.role)) ? p.role : "unemployed",
+        baseProfession: (typeof p.baseProfession === "string" && PROFESSIONS.includes(p.baseProfession))
+          ? p.baseProfession
+          : ((typeof p.role === "string" && PROFESSIONS.includes(p.role)) ? p.role : pick(PROFESSIONS)),
         experience: {
           ...createExperienceProfile(),
           ...(p.experience && typeof p.experience === "object" ? p.experience : {})
@@ -307,6 +323,16 @@
       }
       if (typeof state.selectedBuilding !== "string" && state.selectedBuilding !== null) {
         state.selectedBuilding = null;
+      }
+      if (state.selectedBuilding && (
+        state.selectedBuilding === "building:sawmill" ||
+        state.selectedBuilding === "building:workshop" ||
+        state.selectedBuilding === "building:clinic"
+      )) {
+        state.selectedBuilding = null;
+      }
+      if (typeof state.selectedObject !== "string" && state.selectedObject !== null) {
+        state.selectedObject = null;
       }
       if (![1, 3, 6].includes(state.speed)) {
         state.speed = 1;
@@ -524,6 +550,7 @@
         const p = createPerson();
         state.selectedId = p.id;
         state.selectedBuilding = null;
+        state.selectedObject = null;
         addEvent(`${p.name} joined the city.`);
         rebalanceJobs();
       });
@@ -554,20 +581,26 @@
         syncUiToggles();
       });
 
-      ui.toggleResourcesBtn.addEventListener("click", () => {
-        uiState.resourceView = uiState.resourceView === "map" ? "world" : "map";
-        syncUiToggles();
-      });
+      if (ui.toggleResourcesBtn) {
+        ui.toggleResourcesBtn.addEventListener("click", () => {
+          uiState.resourceView = uiState.resourceView === "map" ? "world" : "map";
+          syncUiToggles();
+        });
+      }
 
-      ui.resourceMapBtn.addEventListener("click", () => {
-        uiState.resourceView = "map";
-        syncUiToggles();
-      });
+      if (ui.resourceMapBtn) {
+        ui.resourceMapBtn.addEventListener("click", () => {
+          uiState.resourceView = "map";
+          syncUiToggles();
+        });
+      }
 
-      ui.resourceWorldBtn.addEventListener("click", () => {
-        uiState.resourceView = "world";
-        syncUiToggles();
-      });
+      if (ui.resourceWorldBtn) {
+        ui.resourceWorldBtn.addEventListener("click", () => {
+          uiState.resourceView = "world";
+          syncUiToggles();
+        });
+      }
 
       ui.pauseBtn.addEventListener("click", () => {
         state.paused = !state.paused;
@@ -597,20 +630,26 @@
         loadFromStorage(true);
       });
 
-      ui.zoomInBtn.addEventListener("click", () => {
-        camera.zoomByFactor(ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
-        updateZoomLabel();
-      });
+      if (ui.zoomInBtn) {
+        ui.zoomInBtn.addEventListener("click", () => {
+          camera.zoomByFactor(ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
+          updateZoomLabel();
+        });
+      }
 
-      ui.zoomOutBtn.addEventListener("click", () => {
-        camera.zoomByFactor(1 / ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
-        updateZoomLabel();
-      });
+      if (ui.zoomOutBtn) {
+        ui.zoomOutBtn.addEventListener("click", () => {
+          camera.zoomByFactor(1 / ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
+          updateZoomLabel();
+        });
+      }
 
-      ui.zoomResetBtn.addEventListener("click", () => {
-        camera.resetZoom();
-        updateZoomLabel();
-      });
+      if (ui.zoomResetBtn) {
+        ui.zoomResetBtn.addEventListener("click", () => {
+          camera.resetZoom();
+          updateZoomLabel();
+        });
+      }
 
       canvas.addEventListener("wheel", (ev) => {
         ev.preventDefault();
@@ -692,14 +731,26 @@
         if (chosen) {
           state.selectedId = chosen.id;
           state.selectedBuilding = null;
+          state.selectedObject = null;
           return;
         }
 
-        const buildingId = findBuildingAt(wx, wy);
-        if (buildingId) {
-          state.selectedBuilding = buildingId;
+        const objectId = findMapObjectAt(wx, wy);
+        if (objectId) {
           state.selectedId = null;
+          if (objectId.startsWith("building:") || objectId.startsWith("house:")) {
+            state.selectedBuilding = objectId;
+            state.selectedObject = null;
+          } else {
+            state.selectedBuilding = null;
+            state.selectedObject = objectId;
+          }
+          return;
         }
+
+        state.selectedId = null;
+        state.selectedBuilding = null;
+        state.selectedObject = null;
       });
 
       window.addEventListener("resize", resizeCanvas);
@@ -722,9 +773,6 @@
     }
 
     function buildingRole(key) {
-      if (key === "sawmill") return "sawmill_worker";
-      if (key === "workshop") return "carpenter";
-      if (key === "clinic") return "medic";
       if (key === "farm") return "farmer";
       if (key === "townhall") return "unemployed";
       return null;
@@ -751,7 +799,7 @@
         }
       }
 
-      const order = ["market", "farm", "townhall", "sawmill", "workshop", "clinic"];
+      const order = ["market", "farm", "townhall"];
       for (const key of order) {
         const b = BUILDINGS[key];
         if (!b) {
@@ -766,6 +814,118 @@
 
     function isSelectedBuilding(id) {
       return state.selectedBuilding === id;
+    }
+
+    function isSelectedObject(id) {
+      return state.selectedObject === id;
+    }
+
+    function roadKey(gx, gy) {
+      return `${gx}:${gy}`;
+    }
+
+    function roadCellFromPos(x, y) {
+      return {
+        gx: Math.floor(x / ROAD.cell),
+        gy: Math.floor(y / ROAD.cell)
+      };
+    }
+
+    function addRoadHeatAt(gx, gy, amount) {
+      if (!Number.isFinite(gx) || !Number.isFinite(gy) || !Number.isFinite(amount) || amount <= 0) {
+        return;
+      }
+      const key = roadKey(gx, gy);
+      const prev = Number(state.roadHeat[key]) || 0;
+      state.roadHeat[key] = clamp(prev + amount, 0, ROAD.maxHeat);
+    }
+
+    function addRoadFootstep(x, y, amount = ROAD.addPerStep) {
+      const cell = roadCellFromPos(x, y);
+      addRoadHeatAt(cell.gx, cell.gy, amount);
+      addRoadHeatAt(cell.gx + 1, cell.gy, amount * 0.26);
+      addRoadHeatAt(cell.gx - 1, cell.gy, amount * 0.26);
+      addRoadHeatAt(cell.gx, cell.gy + 1, amount * 0.26);
+      addRoadHeatAt(cell.gx, cell.gy - 1, amount * 0.26);
+    }
+
+    function decayRoadHeat(dtHours) {
+      const loss = ROAD.decayPerHour * dtHours;
+      if (loss <= 0) {
+        return;
+      }
+      for (const key of Object.keys(state.roadHeat)) {
+        const next = (Number(state.roadHeat[key]) || 0) - loss;
+        if (next <= 0.01) {
+          delete state.roadHeat[key];
+        } else {
+          state.roadHeat[key] = next;
+        }
+      }
+    }
+
+    function roadCells(minHeat = ROAD.drawThreshold) {
+      const cells = [];
+      for (const [key, raw] of Object.entries(state.roadHeat)) {
+        const heat = Number(raw) || 0;
+        if (heat < minHeat) {
+          continue;
+        }
+        const parts = key.split(":");
+        const gx = Number(parts[0]);
+        const gy = Number(parts[1]);
+        if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
+          continue;
+        }
+        cells.push({
+          key,
+          gx,
+          gy,
+          heat,
+          cx: gx * ROAD.cell + ROAD.cell * 0.5,
+          cy: gy * ROAD.cell + ROAD.cell * 0.5
+        });
+      }
+      return cells;
+    }
+
+    function findRoadAt(x, y) {
+      let bestId = null;
+      let bestDist = Infinity;
+      for (const c of roadCells(ROAD.clickThreshold)) {
+        const d = Math.hypot(c.cx - x, c.cy - y);
+        if (d <= ROAD.clickRadius && d < bestDist) {
+          bestDist = d;
+          bestId = `road:${c.key}`;
+        }
+      }
+      return bestId;
+    }
+
+    function findMapObjectAt(x, y) {
+      const buildingId = findBuildingAt(x, y);
+      if (buildingId) {
+        return buildingId;
+      }
+      for (let i = 0; i < state.resources.wild.length; i++) {
+        const p = state.resources.wild[i];
+        if (Math.hypot(p.x - x, p.y - y) <= 46) {
+          return `wild:${i}`;
+        }
+      }
+      for (let i = 0; i < state.resources.orchards.length; i++) {
+        const o = state.resources.orchards[i];
+        if (Math.hypot(o.x - x, o.y - y) <= 44) {
+          return `orchard:${i}`;
+        }
+      }
+      for (let i = 0; i < state.resources.forests.length; i++) {
+        const f = state.resources.forests[i];
+        if (Math.hypot(f.x - x, f.y - y) <= 50) {
+          return `forest:${i}`;
+        }
+      }
+      return findRoadAt(x, y);
     }
 
     function inventoryTotal(person) {
@@ -840,16 +1000,19 @@
       if (dist <= 0.001) {
         person.x = tx;
         person.y = ty;
+        addRoadFootstep(person.x, person.y, ROAD.addPerStep * 0.35);
         return true;
       }
       const step = person.speed * dtHours;
       if (step >= dist) {
         person.x = tx;
         person.y = ty;
+        addRoadFootstep(person.x, person.y, ROAD.addPerStep * 0.7);
         return true;
       }
       person.x += (dx / dist) * step;
       person.y += (dy / dist) * step;
+      addRoadFootstep(person.x, person.y);
       return false;
     }
 
@@ -1242,26 +1405,17 @@
 
     function computeDemandAndPrices() {
       const pop = state.people.length;
-      const sick = state.people.filter((p) => p.health < 55).length;
       const houses = state.city.houses.length;
       const constructionNeed = Math.max(0, Math.ceil((pop - houses * HOUSE_CAPACITY) / HOUSE_CAPACITY));
-
-      const furnitureTarget = houses * 4;
-      const furnitureNeed = Math.max(0, furnitureTarget - state.city.furnitureLevel);
-
-      const medkitNeed = Math.ceil(sick * 1.2 + pop * 0.18);
-      const herbsNeed = 4 + medkitNeed * 2;
       const foodNeed = Math.ceil(pop * 2.6 + 5);
-
-      const planksNeed = (state.city.companies.workshop ? furnitureNeed * 2 : 0) + constructionNeed * 7 + (state.city.companies.sawmill ? 6 : 2);
-      const logsNeed = (state.city.companies.sawmill ? planksNeed * 2 : 10 + constructionNeed * 8);
+      const logsNeed = 10 + constructionNeed * 8;
 
       state.market.demand.food = Math.max(4, foodNeed);
       state.market.demand.logs = Math.max(8, Math.ceil(logsNeed));
-      state.market.demand.planks = Math.max(0, Math.ceil(planksNeed));
-      state.market.demand.furniture = Math.max(0, Math.ceil(furnitureNeed));
-      state.market.demand.herbs = Math.max(3, herbsNeed);
-      state.market.demand.medkits = Math.max(1, medkitNeed);
+      state.market.demand.planks = 0;
+      state.market.demand.furniture = 0;
+      state.market.demand.herbs = 0;
+      state.market.demand.medkits = 0;
 
       for (const good of GOODS) {
         const supply = state.market.stocks[good] + 1;
@@ -1282,29 +1436,19 @@
       const stocks = state.market.stocks;
 
       const foodGap = Math.max(0, demand.food - stocks.food);
-      const herbGap = Math.max(0, demand.herbs - stocks.herbs);
       const logsGap = Math.max(0, demand.logs - stocks.logs);
-      const planksGap = Math.max(0, demand.planks - stocks.planks);
-      const furnitureGap = Math.max(0, demand.furniture - stocks.furniture);
-      const medkitGap = Math.max(0, demand.medkits - stocks.medkits);
 
       const wants = {
         farmer: Math.max(1, Math.ceil(foodGap / 18)),
-        forager: Math.max(1, Math.ceil((foodGap * 0.35 + herbGap) / 16)),
-        woodcutter: Math.ceil(logsGap / 15),
-        sawmill_worker: state.city.companies.sawmill ? Math.ceil(planksGap / 8) : 0,
-        carpenter: state.city.companies.workshop ? Math.ceil(furnitureGap / 6) : 0,
-        medic: state.city.companies.clinic ? Math.ceil(medkitGap / 5) : 0
+        forager: Math.max(1, Math.ceil((foodGap * 0.5) / 16)),
+        woodcutter: Math.ceil(logsGap / 15)
       };
 
-      const priority = ["farmer", "forager", "medic", "carpenter", "sawmill_worker", "woodcutter"];
+      const priority = ["farmer", "forager", "woodcutter"];
       const roleCounts = {
         forager: 0,
         farmer: 0,
         woodcutter: 0,
-        sawmill_worker: 0,
-        carpenter: 0,
-        medic: 0,
         unemployed: 0
       };
       for (const p of state.people) {
@@ -1386,27 +1530,7 @@
 
     function cityProgressionAndConstruction(hourAbsolute) {
       const pop = state.people.length;
-
-      if (!state.city.companies.sawmill && pop >= 5 && state.market.stocks.logs >= 24 && state.city.treasury >= 120) {
-        state.city.companies.sawmill = true;
-        state.city.treasury -= 120;
-        state.city.stage = "Expanding";
-        addEvent("Sawmill company opened.");
-      }
-
-      if (!state.city.companies.clinic && pop >= 6 && state.market.stocks.herbs >= 10 && state.city.treasury >= 95) {
-        state.city.companies.clinic = true;
-        state.city.treasury -= 95;
-        state.city.stage = state.city.companies.workshop ? "Industrial" : "Expanding";
-        addEvent("Clinic company opened.");
-      }
-
-      if (!state.city.companies.workshop && pop >= 7 && state.market.stocks.planks >= 10 && state.city.treasury >= 165) {
-        state.city.companies.workshop = true;
-        state.city.treasury -= 165;
-        state.city.stage = "Industrial";
-        addEvent("Furniture workshop opened.");
-      }
+      state.city.stage = pop >= 7 ? "Expanding" : "Subsistence";
 
       if (hourAbsolute % 24 !== 0) {
         return;
@@ -1415,32 +1539,14 @@
       const needHomes = Math.max(0, Math.ceil((pop - state.city.houses.length * HOUSE_CAPACITY) / HOUSE_CAPACITY));
       if (needHomes > 0) {
         const needLogs = 14;
-        const needPlanks = state.city.companies.sawmill ? 6 : 0;
-        if (state.market.stocks.logs >= needLogs && state.market.stocks.planks >= needPlanks && state.city.treasury >= 70) {
+        if (state.market.stocks.logs >= needLogs && state.city.treasury >= 70) {
           state.market.stocks.logs -= needLogs;
-          state.market.stocks.planks -= needPlanks;
           state.city.treasury -= 70;
 
           const x = 1110 + (state.city.houses.length % 5) * 96 + rand(-16, 16);
           const y = 960 + Math.floor(state.city.houses.length / 5) * 86 + rand(-14, 14);
           state.city.houses.push(createHouse(x, y));
           addEvent("A new house was built.");
-        }
-      }
-
-      // Household goods sink and realistic end demand.
-      const furnitureDecay = state.city.houses.length * 0.09;
-      state.city.furnitureLevel = Math.max(0, state.city.furnitureLevel - furnitureDecay);
-
-      const neededFurniture = Math.max(0, state.city.houses.length * 4 - state.city.furnitureLevel);
-      const buyQty = Math.min(state.market.stocks.furniture, Math.ceil(neededFurniture * 0.35));
-      if (buyQty > 0) {
-        state.market.stocks.furniture -= buyQty;
-        state.city.furnitureLevel += buyQty;
-        const spend = buyQty * state.market.prices.furniture;
-        if (state.city.treasury >= spend) {
-          state.city.treasury -= spend;
-          state.market.treasury += spend;
         }
       }
 
@@ -1485,13 +1591,13 @@
       }
 
       if (hourAbsolute % 12 === 0) {
-        // Light external trade: city exports small surplus, keeping economy from hard lock.
-        const exportable = Math.max(0, state.market.stocks.furniture - state.market.demand.furniture - 1);
-        const sold = Math.min(exportable, 2);
-        if (sold > 0) {
-          state.market.stocks.furniture -= sold;
-          state.market.treasury += sold * state.market.prices.furniture;
-        }
+      // Light external trade: city exports small surplus, keeping economy from hard lock.
+      const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - 2);
+      const sold = Math.min(exportable, 3);
+      if (sold > 0) {
+        state.market.stocks.logs -= sold;
+        state.market.treasury += sold * state.market.prices.logs;
+      }
       }
 
       cityProgressionAndConstruction(hourAbsolute);
@@ -1512,6 +1618,7 @@
 
       updatePeople(gameHours);
       updateResourceRegeneration(gameHours);
+      decayRoadHeat(gameHours);
     }
 
     function roleLabel(role) {
@@ -1588,8 +1695,34 @@
         ui.eventLog.appendChild(div);
       }
 
+      renderProfessionLegend();
       renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs);
       renderBuildingCard();
+    }
+
+    function renderProfessionLegend() {
+      if (!ui.professionLegend) {
+        return;
+      }
+      const counts = {
+        forager: 0,
+        farmer: 0,
+        woodcutter: 0,
+        unemployed: 0
+      };
+      for (const p of state.people) {
+        if (Object.prototype.hasOwnProperty.call(counts, p.role)) {
+          counts[p.role] += 1;
+        } else {
+          counts.unemployed += 1;
+        }
+      }
+      ui.professionLegend.innerHTML = [
+        `<div class="legend-row"><span><span class="dot" style="background:#d0d95c"></span>Forager</span><span>${counts.forager}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:#63b35d"></span>Farmer</span><span>${counts.farmer}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:#5f8f53"></span>Woodcutter</span><span>${counts.woodcutter}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:#9f9f9f"></span>Unemployed</span><span>${counts.unemployed}</span></div>`
+      ].join("");
     }
 
     function renderResourceMenu(stocks, forestLeft, orchardFood, wildFood, wildHerbs) {
@@ -1621,10 +1754,90 @@
         return;
       }
       const selected = state.selectedBuilding;
+      const selectedObject = state.selectedObject;
+      if (!selected && !selectedObject) {
+        ui.buildingCard.innerHTML = `
+          <h2>No object selected</h2>
+          <div class="mini">Click any object on the map to inspect description and stats.</div>
+        `;
+        return;
+      }
+
+      if (selectedObject) {
+        if (selectedObject.startsWith("wild:")) {
+          const idx = Number(selectedObject.split(":")[1]);
+          const patch = state.resources.wild[idx];
+          if (!patch) {
+            state.selectedObject = null;
+            return;
+          }
+          ui.buildingCard.innerHTML = `
+            <h2>Wild Patch #${idx + 1}</h2>
+            <div class="mini"><b>What is it:</b> Foraging zone where sims gather food and herbs.</div>
+            <div class="mini"><b>Food:</b> ${patch.food.toFixed(0)} / ${patch.maxFood.toFixed(0)}</div>
+            <div class="mini"><b>Herbs:</b> ${patch.herbs.toFixed(0)} / ${patch.maxHerbs.toFixed(0)}</div>
+            <div class="mini"><b>Coords:</b> ${Math.round(patch.x)}, ${Math.round(patch.y)}</div>
+          `;
+          return;
+        }
+        if (selectedObject.startsWith("orchard:")) {
+          const idx = Number(selectedObject.split(":")[1]);
+          const orchard = state.resources.orchards[idx];
+          if (!orchard) {
+            state.selectedObject = null;
+            return;
+          }
+          ui.buildingCard.innerHTML = `
+            <h2>Orchard #${idx + 1}</h2>
+            <div class="mini"><b>What is it:</b> Renewable fruit source for foragers.</div>
+            <div class="mini"><b>Food:</b> ${orchard.food.toFixed(0)} / ${orchard.maxFood.toFixed(0)}</div>
+            <div class="mini"><b>Coords:</b> ${Math.round(orchard.x)}, ${Math.round(orchard.y)}</div>
+          `;
+          return;
+        }
+        if (selectedObject.startsWith("forest:")) {
+          const idx = Number(selectedObject.split(":")[1]);
+          const forest = state.resources.forests[idx];
+          if (!forest) {
+            state.selectedObject = null;
+            return;
+          }
+          ui.buildingCard.innerHTML = `
+            <h2>Forest #${idx + 1}</h2>
+            <div class="mini"><b>What is it:</b> Logging area where woodcutters harvest logs.</div>
+            <div class="mini"><b>Wood:</b> ${forest.wood.toFixed(0)} / ${forest.maxWood.toFixed(0)}</div>
+            <div class="mini"><b>Coords:</b> ${Math.round(forest.x)}, ${Math.round(forest.y)}</div>
+          `;
+          return;
+        }
+        if (selectedObject.startsWith("road:")) {
+          const key = selectedObject.slice("road:".length);
+          const raw = Number(state.roadHeat[key]) || 0;
+          const parts = key.split(":");
+          const gx = Number(parts[0]);
+          const gy = Number(parts[1]);
+          if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
+            state.selectedObject = null;
+            return;
+          }
+          const cx = gx * ROAD.cell + ROAD.cell * 0.5;
+          const cy = gy * ROAD.cell + ROAD.cell * 0.5;
+          const totalRoadTiles = roadCells(ROAD.drawThreshold).length;
+          ui.buildingCard.innerHTML = `
+            <h2>Path Segment</h2>
+            <div class="mini"><b>What is it:</b> Emergent road created by repeated walking.</div>
+            <div class="mini"><b>Traffic intensity:</b> ${raw.toFixed(1)} / ${ROAD.maxHeat}</div>
+            <div class="mini"><b>Total road tiles:</b> ${totalRoadTiles}</div>
+            <div class="mini"><b>Coords:</b> ${Math.round(cx)}, ${Math.round(cy)}</div>
+          `;
+          return;
+        }
+      }
+
       if (!selected) {
         ui.buildingCard.innerHTML = `
-          <h2>No building selected</h2>
-          <div class="mini">Click a building on the map to inspect workers and production stats.</div>
+          <h2>No object selected</h2>
+          <div class="mini">Click any object on the map to inspect description and stats.</div>
         `;
         return;
       }
@@ -1644,7 +1857,6 @@
         ui.buildingCard.innerHTML = `
           <h2>House #${idx + 1}</h2>
           <div class="mini"><b>Residents:</b> ${residents} / ${capacity}</div>
-          <div class="mini"><b>Furniture pressure:</b> ${(state.city.furnitureLevel / Math.max(1, state.city.houses.length)).toFixed(1)} per house</div>
           <div class="mini"><b>Coords:</b> ${Math.round(h.x)}, ${Math.round(h.y)}</div>
         `;
         return;
@@ -1678,45 +1890,6 @@
           <div class="mini"><b>Working now:</b> ${active}</div>
           <div class="mini"><b>Crop:</b> ${state.resources.farm.crop.toFixed(0)} / ${state.resources.farm.maxCrop.toFixed(0)}</div>
           <div class="mini"><b>Fertility:</b> ${state.resources.farm.fertility.toFixed(0)} / ${state.resources.farm.maxFertility.toFixed(0)}</div>
-          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
-        `;
-        return;
-      }
-
-      if (key === "sawmill") {
-        const active = workersBusyAt(["make_planks"]);
-        ui.buildingCard.innerHTML = `
-          <h2>Sawmill ${state.city.companies.sawmill ? "" : "(locked)"}</h2>
-          <div class="mini"><b>Workers:</b> ${workers.length}</div>
-          <div class="mini"><b>Working now:</b> ${active}</div>
-          <div class="mini"><b>Input logs:</b> ${state.market.stocks.logs.toFixed(0)}</div>
-          <div class="mini"><b>Output planks:</b> ${state.market.stocks.planks.toFixed(0)}</div>
-          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
-        `;
-        return;
-      }
-
-      if (key === "workshop") {
-        const active = workersBusyAt(["make_furniture"]);
-        ui.buildingCard.innerHTML = `
-          <h2>Workshop ${state.city.companies.workshop ? "" : "(locked)"}</h2>
-          <div class="mini"><b>Workers:</b> ${workers.length}</div>
-          <div class="mini"><b>Working now:</b> ${active}</div>
-          <div class="mini"><b>Input planks:</b> ${state.market.stocks.planks.toFixed(0)}</div>
-          <div class="mini"><b>Output furniture:</b> ${state.market.stocks.furniture.toFixed(0)}</div>
-          <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
-        `;
-        return;
-      }
-
-      if (key === "clinic") {
-        const active = workersBusyAt(["make_medkit"]);
-        ui.buildingCard.innerHTML = `
-          <h2>Clinic ${state.city.companies.clinic ? "" : "(locked)"}</h2>
-          <div class="mini"><b>Medics:</b> ${workers.length}</div>
-          <div class="mini"><b>Working now:</b> ${active}</div>
-          <div class="mini"><b>Input herbs:</b> ${state.market.stocks.herbs.toFixed(0)}</div>
-          <div class="mini"><b>Output medkits:</b> ${state.market.stocks.medkits.toFixed(0)}</div>
           <div class="mini"><b>Workers:</b> ${workerNames || "none"}</div>
         `;
         return;
@@ -1878,6 +2051,59 @@
       ctx.fillText(label + (locked ? " (locked)" : ""), b.x + b.w / 2, b.y + b.h / 2 + 5);
     }
 
+    function drawRoadNetwork() {
+      const cells = roadCells(ROAD.drawThreshold);
+      if (cells.length === 0) {
+        return;
+      }
+      const byKey = new Map(cells.map((c) => [c.key, c]));
+      if (imageReady(sprites.pathTile)) {
+        const pathPattern = ctx.createPattern(sprites.pathTile, "repeat");
+        ctx.strokeStyle = pathPattern || "rgba(219, 199, 146, 0.45)";
+        ctx.fillStyle = pathPattern || "rgba(219, 199, 146, 0.42)";
+      } else {
+        ctx.strokeStyle = "rgba(219, 199, 146, 0.45)";
+        ctx.fillStyle = "rgba(219, 199, 146, 0.42)";
+      }
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const c of cells) {
+        const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
+        const width = 7 + normalized * 11;
+        const right = byKey.get(roadKey(c.gx + 1, c.gy));
+        const down = byKey.get(roadKey(c.gx, c.gy + 1));
+        if (right) {
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(c.cx, c.cy);
+          ctx.lineTo(right.cx, right.cy);
+          ctx.stroke();
+        }
+        if (down) {
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(c.cx, c.cy);
+          ctx.lineTo(down.cx, down.cy);
+          ctx.stroke();
+        }
+      }
+      for (const c of cells) {
+        const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
+        const radius = 5 + normalized * 8;
+        ctx.globalAlpha = 0.45 + normalized * 0.35;
+        ctx.beginPath();
+        ctx.arc(c.cx, c.cy, radius, 0, Math.PI * 2);
+        ctx.fill();
+        if (isSelectedObject(`road:${c.key}`)) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = "#ffe9a8";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+
     function renderMapBase() {
       ensureGeneratedBuildingSprites();
       if (imageReady(sprites.background)) {
@@ -1893,28 +2119,7 @@
         ctx.fillRect(0, 0, WORLD.width, WORLD.height);
       }
 
-      // Paths
-      if (imageReady(sprites.pathTile)) {
-        const pathPattern = ctx.createPattern(sprites.pathTile, "repeat");
-        if (pathPattern) {
-          ctx.strokeStyle = pathPattern;
-        } else {
-          ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
-        }
-      } else {
-        ctx.strokeStyle = "rgba(215, 192, 135, 0.22)";
-      }
-      ctx.lineWidth = 22;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(250, 660);
-      ctx.lineTo(770, 510);
-      ctx.lineTo(1180, 290);
-      ctx.moveTo(760, 510);
-      ctx.lineTo(970, 740);
-      ctx.moveTo(770, 510);
-      ctx.lineTo(1250, 560);
-      ctx.stroke();
+      drawRoadNetwork();
 
       // Home district
       for (let i = 0; i < state.city.houses.length; i++) {
@@ -1933,7 +2138,8 @@
       }
 
       // Resource patches
-      for (const patch of state.resources.wild) {
+      for (let i = 0; i < state.resources.wild.length; i++) {
+        const patch = state.resources.wild[i];
         ctx.beginPath();
         ctx.fillStyle = "rgba(166, 192, 86, 0.35)";
         ctx.strokeStyle = "rgba(188, 220, 97, 0.85)";
@@ -1941,6 +2147,11 @@
         ctx.arc(patch.x, patch.y, 44, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        if (isSelectedObject(`wild:${i}`)) {
+          ctx.strokeStyle = "#ffe9a8";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
         drawImageCover(sprites.wild, patch.x - 16, patch.y - 16, 32, 32);
         ctx.fillStyle = "#dce8aa";
         ctx.font = "12px Trebuchet MS";
@@ -1948,7 +2159,8 @@
         ctx.fillText(`F${patch.food.toFixed(0)} H${patch.herbs.toFixed(0)}`, patch.x, patch.y + 4);
       }
 
-      for (const orchard of state.resources.orchards) {
+      for (let i = 0; i < state.resources.orchards.length; i++) {
+        const orchard = state.resources.orchards[i];
         ctx.beginPath();
         ctx.fillStyle = "rgba(207, 136, 76, 0.34)";
         ctx.strokeStyle = "rgba(235, 175, 90, 0.85)";
@@ -1956,6 +2168,11 @@
         ctx.arc(orchard.x, orchard.y, 42, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        if (isSelectedObject(`orchard:${i}`)) {
+          ctx.strokeStyle = "#ffe9a8";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
         drawImageCover(sprites.farm, orchard.x - 16, orchard.y - 16, 32, 32);
         ctx.fillStyle = "#ffe6bc";
         ctx.font = "12px Trebuchet MS";
@@ -1963,7 +2180,8 @@
         ctx.fillText(`Orchard ${orchard.food.toFixed(0)}`, orchard.x, orchard.y + 4);
       }
 
-      for (const f of state.resources.forests) {
+      for (let i = 0; i < state.resources.forests.length; i++) {
+        const f = state.resources.forests[i];
         ctx.beginPath();
         ctx.fillStyle = "rgba(72, 124, 66, 0.45)";
         ctx.strokeStyle = "rgba(110, 176, 97, 0.8)";
@@ -1971,6 +2189,11 @@
         ctx.arc(f.x, f.y, 48, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        if (isSelectedObject(`forest:${i}`)) {
+          ctx.strokeStyle = "#ffe9a8";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
         drawImageCover(sprites.forest, f.x - 18, f.y - 18, 36, 36);
         ctx.fillStyle = "#d3f0cb";
         ctx.font = "12px Trebuchet MS";
