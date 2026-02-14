@@ -301,6 +301,10 @@
       padding: 22px 12px;
     }
 
+    .modal-backdrop.hidden {
+      display: none;
+    }
+
     .modal-window {
       width: min(760px, 96vw);
       max-height: calc(100vh - 44px);

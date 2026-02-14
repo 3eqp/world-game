@@ -1406,6 +1406,20 @@
         canvas.classList.remove("is-grabbing");
       });
 
+      window.addEventListener("blur", () => {
+        resetMovementKeys();
+        isDragging = false;
+        canvas.classList.remove("is-grabbing");
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          resetMovementKeys();
+          isDragging = false;
+          canvas.classList.remove("is-grabbing");
+        }
+      });
+
       window.addEventListener("keydown", (ev) => {
         if (ev.code === "Escape" && uiState.worldSettingsOpen) {
           setWorldSettingsModalOpen(false);
@@ -3386,6 +3400,8 @@
 
     async function init() {
       setupUI();
+      setWorldSettingsModalOpen(false);
+      resetMovementKeys();
       resizeCanvas();
       const restored = await loadFromStorage(false);
       if (!restored) {
