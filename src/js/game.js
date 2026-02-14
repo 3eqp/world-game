@@ -39,11 +39,39 @@
       zoomInBtn: document.getElementById("zoomInBtn"),
       zoomStat: document.getElementById("zoomStat"),
       toolsMenuBtn: document.getElementById("toolsMenuBtn"),
+      worldSettingsBtn: document.getElementById("worldSettingsBtn"),
       toggleResourcesBtn: document.getElementById("toggleResourcesBtn"),
       toolsPanel: document.getElementById("toolsPanel"),
       resourceMapBtn: document.getElementById("resourceMapBtn"),
       resourceWorldBtn: document.getElementById("resourceWorldBtn"),
       resourceList: document.getElementById("resourceList"),
+      worldSettingsModal: document.getElementById("worldSettingsModal"),
+      worldSettingsCloseBtn: document.getElementById("worldSettingsCloseBtn"),
+      worldSettingsApplyBtn: document.getElementById("worldSettingsApplyBtn"),
+      worldSettingsApplySaveBtn: document.getElementById("worldSettingsApplySaveBtn"),
+      wsAutosaveInput: document.getElementById("wsAutosaveInput"),
+      wsRoadDecayInput: document.getElementById("wsRoadDecayInput"),
+      wsRoadStepInput: document.getElementById("wsRoadStepInput"),
+      wsRoadSegmentInput: document.getElementById("wsRoadSegmentInput"),
+      wsRoadThresholdInput: document.getElementById("wsRoadThresholdInput"),
+      wsRegenForestInput: document.getElementById("wsRegenForestInput"),
+      wsRegenWildFoodInput: document.getElementById("wsRegenWildFoodInput"),
+      wsRegenWildHerbsInput: document.getElementById("wsRegenWildHerbsInput"),
+      wsRegenOrchardInput: document.getElementById("wsRegenOrchardInput"),
+      wsRegenFarmCropInput: document.getElementById("wsRegenFarmCropInput"),
+      wsRegenFarmFertilityInput: document.getElementById("wsRegenFarmFertilityInput"),
+      wsCostTownhallLogsInput: document.getElementById("wsCostTownhallLogsInput"),
+      wsCostTownhallFoodInput: document.getElementById("wsCostTownhallFoodInput"),
+      wsCostTownhallCashInput: document.getElementById("wsCostTownhallCashInput"),
+      wsCostMarketLogsInput: document.getElementById("wsCostMarketLogsInput"),
+      wsCostMarketFoodInput: document.getElementById("wsCostMarketFoodInput"),
+      wsCostMarketCashInput: document.getElementById("wsCostMarketCashInput"),
+      wsCostFarmLogsInput: document.getElementById("wsCostFarmLogsInput"),
+      wsCostFarmFoodInput: document.getElementById("wsCostFarmFoodInput"),
+      wsCostFarmCashInput: document.getElementById("wsCostFarmCashInput"),
+      wsCostHouseLogsInput: document.getElementById("wsCostHouseLogsInput"),
+      wsCostHouseFoodInput: document.getElementById("wsCostHouseFoodInput"),
+      wsCostHouseCashInput: document.getElementById("wsCostHouseCashInput"),
       sidebar: document.querySelector(".sidebar"),
       rightbar: document.querySelector(".rightbar"),
       popStat: document.getElementById("popStat"),
@@ -61,11 +89,12 @@
     let state = createInitialState(false);
     const uiState = {
       toolsOpen: false,
-      resourceView: "map"
+      resourceView: "map",
+      worldSettingsOpen: false
     };
     const camera = Camera.createCamera(WORLD, ZOOM, CAMERA);
     const view = camera.view;
-    const AUTOSAVE_INTERVAL_SEC = 20;
+    let autosaveIntervalSec = 20;
     let autosaveTimer = 0;
     let saveInFlight = false;
     let loadInFlight = false;
@@ -82,14 +111,56 @@
     const LIFE_SPAN_DAYS = 100;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const ROAD = {
-      cell: 48,
-      clickRadius: 26,
-      drawThreshold: 1.2,
-      clickThreshold: 2.2,
-      decayPerHour: 0.12,
-      addPerStep: 0.62,
-      maxHeat: 48
+      cell: 24,
+      clickRadius: 18,
+      drawThreshold: 0.7,
+      clickThreshold: 1.1,
+      decayPerHour: 0.1,
+      addPerStep: 0.42,
+      addPerSegment: 0.95,
+      maxHeat: 48,
+      maxEdgeHeat: 80
     };
+    const BUILD_COSTS = {
+      townhall: { logs: 14, food: 8, cash: 90 },
+      market: { logs: 12, food: 10, cash: 80 },
+      farm: { logs: 10, food: 6, cash: 65 },
+      house: { logs: 8, food: 4, cash: 45 }
+    };
+    const REGEN = {
+      forest: 0.004,
+      wildFood: 0.012,
+      wildHerbs: 0.007,
+      orchardFood: 0.028,
+      farmCrop: 0.085,
+      farmFertility: 0.03
+    };
+    const SHEET_ANIMS = Object.freeze({
+      person: {
+        cols: 3,
+        rows: 5,
+        walkFrames: 3,
+        walkFps: 8.5,
+        idleRow: 4,
+        idleFrame: 1,
+        rowByFacing: {
+          down: 0,
+          left: 1,
+          right: 2,
+          up: 3
+        }
+      },
+      wild: {
+        cols: 4,
+        rows: 4,
+        frames: 4,
+        fps: 5
+      }
+    });
+
+    function normalizeFacing(v) {
+      return v === "up" || v === "down" || v === "left" || v === "right" ? v : "down";
+    }
 
     function createExperienceProfile(seedRole) {
       const profile = {
@@ -119,22 +190,28 @@
         graves: [],
         eventLog: [],
         roadHeat: {},
+        roadEdges: {},
         city: {
-          stage: "Subsistence",
+          stage: "Wilderness",
           treasury: Math.round(380 * moneyScale),
           houses: [],
           furnitureLevel: Math.round(5 * resourceScale),
-          companies: {}
+          companies: {},
+          built: {
+            townhall: true,
+            market: true,
+            farm: true
+          }
         },
         market: {
           treasury: Math.round(2400 * moneyScale),
           stocks: {
-            food: Math.round(30 * resourceScale),
-            logs: Math.round(18 * resourceScale),
+            food: Math.round(24 * resourceScale),
+            logs: Math.round(8 * resourceScale),
             planks: 0,
-            furniture: Math.round(2 * resourceScale),
+            furniture: 0,
             herbs: Math.round(10 * resourceScale),
-            medkits: Math.round(2 * resourceScale)
+            medkits: 0
           },
           demand: {
             food: 20,
@@ -170,8 +247,125 @@
             fertility: Math.round(90 * resourceScale),
             maxFertility: Math.round(110 * resourceScale)
           }
+        },
+        worldSettings: defaultWorldSettings()
+      };
+    }
+
+    function defaultWorldSettings() {
+      return {
+        autosaveIntervalSec: 20,
+        road: {
+          decayPerHour: 0.1,
+          addPerStep: 0.42,
+          addPerSegment: 0.95,
+          drawThreshold: 0.7
+        },
+        regen: {
+          forest: 0.004,
+          wildFood: 0.012,
+          wildHerbs: 0.007,
+          orchardFood: 0.028,
+          farmCrop: 0.085,
+          farmFertility: 0.03
+        },
+        buildCosts: {
+          townhall: { logs: 14, food: 8, cash: 90 },
+          market: { logs: 12, food: 10, cash: 80 },
+          farm: { logs: 10, food: 6, cash: 65 },
+          house: { logs: 8, food: 4, cash: 45 }
         }
       };
+    }
+
+    function cloneWorldSettings(settings) {
+      return {
+        autosaveIntervalSec: settings.autosaveIntervalSec,
+        road: { ...settings.road },
+        regen: { ...settings.regen },
+        buildCosts: {
+          townhall: { ...settings.buildCosts.townhall },
+          market: { ...settings.buildCosts.market },
+          farm: { ...settings.buildCosts.farm },
+          house: { ...settings.buildCosts.house }
+        }
+      };
+    }
+
+    function sanitizeNumber(rawValue, fallback, min, max, roundToInt = false) {
+      const numeric = Number(rawValue);
+      if (!Number.isFinite(numeric)) {
+        return fallback;
+      }
+      const clamped = clamp(numeric, min, max);
+      return roundToInt ? Math.round(clamped) : clamped;
+    }
+
+    function sanitizeCostBlock(rawCost, fallbackCost) {
+      const source = rawCost && typeof rawCost === "object" ? rawCost : {};
+      return {
+        logs: sanitizeNumber(source.logs, fallbackCost.logs, 0, 999, true),
+        food: sanitizeNumber(source.food, fallbackCost.food, 0, 999, true),
+        cash: sanitizeNumber(source.cash, fallbackCost.cash, 0, 99999, true)
+      };
+    }
+
+    function sanitizeWorldSettings(rawSettings) {
+      const defaults = defaultWorldSettings();
+      const source = rawSettings && typeof rawSettings === "object" ? rawSettings : {};
+      const rawRoad = source.road && typeof source.road === "object" ? source.road : {};
+      const rawRegen = source.regen && typeof source.regen === "object" ? source.regen : {};
+      const rawCosts = source.buildCosts && typeof source.buildCosts === "object" ? source.buildCosts : {};
+      return {
+        autosaveIntervalSec: sanitizeNumber(source.autosaveIntervalSec, defaults.autosaveIntervalSec, 5, 600, true),
+        road: {
+          decayPerHour: sanitizeNumber(rawRoad.decayPerHour, defaults.road.decayPerHour, 0.001, 2),
+          addPerStep: sanitizeNumber(rawRoad.addPerStep, defaults.road.addPerStep, 0.05, 5),
+          addPerSegment: sanitizeNumber(rawRoad.addPerSegment, defaults.road.addPerSegment, 0.1, 8),
+          drawThreshold: sanitizeNumber(rawRoad.drawThreshold, defaults.road.drawThreshold, 0.1, 10)
+        },
+        regen: {
+          forest: sanitizeNumber(rawRegen.forest, defaults.regen.forest, 0, 1),
+          wildFood: sanitizeNumber(rawRegen.wildFood, defaults.regen.wildFood, 0, 1),
+          wildHerbs: sanitizeNumber(rawRegen.wildHerbs, defaults.regen.wildHerbs, 0, 1),
+          orchardFood: sanitizeNumber(rawRegen.orchardFood, defaults.regen.orchardFood, 0, 1),
+          farmCrop: sanitizeNumber(rawRegen.farmCrop, defaults.regen.farmCrop, 0, 1),
+          farmFertility: sanitizeNumber(rawRegen.farmFertility, defaults.regen.farmFertility, 0, 1)
+        },
+        buildCosts: {
+          townhall: sanitizeCostBlock(rawCosts.townhall, defaults.buildCosts.townhall),
+          market: sanitizeCostBlock(rawCosts.market, defaults.buildCosts.market),
+          farm: sanitizeCostBlock(rawCosts.farm, defaults.buildCosts.farm),
+          house: sanitizeCostBlock(rawCosts.house, defaults.buildCosts.house)
+        }
+      };
+    }
+
+    function applyWorldSettings(rawSettings) {
+      const next = sanitizeWorldSettings(rawSettings);
+      autosaveIntervalSec = next.autosaveIntervalSec;
+      ROAD.decayPerHour = next.road.decayPerHour;
+      ROAD.addPerStep = next.road.addPerStep;
+      ROAD.addPerSegment = next.road.addPerSegment;
+      ROAD.drawThreshold = next.road.drawThreshold;
+
+      REGEN.forest = next.regen.forest;
+      REGEN.wildFood = next.regen.wildFood;
+      REGEN.wildHerbs = next.regen.wildHerbs;
+      REGEN.orchardFood = next.regen.orchardFood;
+      REGEN.farmCrop = next.regen.farmCrop;
+      REGEN.farmFertility = next.regen.farmFertility;
+
+      BUILD_COSTS.townhall = { ...next.buildCosts.townhall };
+      BUILD_COSTS.market = { ...next.buildCosts.market };
+      BUILD_COSTS.farm = { ...next.buildCosts.farm };
+      BUILD_COSTS.house = { ...next.buildCosts.house };
+
+      state.worldSettings = cloneWorldSettings(next);
+      if (autosaveTimer > autosaveIntervalSec) {
+        autosaveTimer = 0;
+      }
+      return next;
     }
 
     function clamp(v, min, max) {
@@ -212,10 +406,7 @@
     const generatedBuildingSprites = {
       market: null,
       farm: null,
-      townhall: null,
-      sawmill: null,
-      workshop: null,
-      clinic: null
+      townhall: null
     };
 
     function pick(arr) {
@@ -250,24 +441,31 @@
       };
     }
 
-    function setupCity() {
-      state.city.houses.push(createHouse(1180, 980));
-      state.city.houses.push(createHouse(1300, 1080));
-      state.city.houses.push(createHouse(1460, 1010));
-      state.city.houses.push(createHouse(1200, 1180));
-    }
-
     function hydrateState(rawState) {
       const base = createInitialState();
       const incoming = rawState && typeof rawState === "object" ? rawState : {};
       const incomingCity = incoming.city && typeof incoming.city === "object" ? incoming.city : {};
-      const incomingCompanies = incomingCity.companies && typeof incomingCity.companies === "object" ? incomingCity.companies : {};
       const incomingMarket = incoming.market && typeof incoming.market === "object" ? incoming.market : {};
       const incomingResources = incoming.resources && typeof incoming.resources === "object" ? incoming.resources : {};
 
       state = { ...base, ...incoming };
       state.city = { ...base.city, ...incomingCity };
       state.city.companies = {};
+      const incomingBuilt = incomingCity.built && typeof incomingCity.built === "object" ? incomingCity.built : null;
+      if (incomingBuilt) {
+        state.city.built = {
+          townhall: Boolean(incomingBuilt.townhall),
+          market: Boolean(incomingBuilt.market),
+          farm: Boolean(incomingBuilt.farm)
+        };
+      } else {
+        const legacyBuilt = true;
+        state.city.built = {
+          townhall: legacyBuilt,
+          market: legacyBuilt,
+          farm: legacyBuilt
+        };
+      }
 
       state.market = { ...base.market, ...incomingMarket };
       state.market.stocks = { ...base.market.stocks, ...(incomingMarket.stocks || {}) };
@@ -280,6 +478,7 @@
       state.resources.orchards = Array.isArray(incomingResources.orchards) ? incomingResources.orchards : base.resources.orchards;
       state.resources.wild = Array.isArray(incomingResources.wild) ? incomingResources.wild : base.resources.wild;
       state.roadHeat = incoming.roadHeat && typeof incoming.roadHeat === "object" ? { ...incoming.roadHeat } : {};
+      state.roadEdges = incoming.roadEdges && typeof incoming.roadEdges === "object" ? { ...incoming.roadEdges } : {};
       for (const k of Object.keys(state.roadHeat)) {
         const v = Number(state.roadHeat[k]);
         if (!Number.isFinite(v) || v <= 0.01) {
@@ -287,6 +486,14 @@
           continue;
         }
         state.roadHeat[k] = clamp(v, 0, ROAD.maxHeat);
+      }
+      for (const k of Object.keys(state.roadEdges)) {
+        const v = Number(state.roadEdges[k]);
+        if (!Number.isFinite(v) || v <= 0.01) {
+          delete state.roadEdges[k];
+          continue;
+        }
+        state.roadEdges[k] = clamp(v, 0, ROAD.maxEdgeHeat);
       }
 
       state.people = Array.isArray(incoming.people) ? incoming.people.map((p) => ({
@@ -300,6 +507,7 @@
           ...(p.experience && typeof p.experience === "object" ? p.experience : {})
         },
         switchPenaltyHours: Number.isFinite(p.switchPenaltyHours) ? Math.max(0, p.switchPenaltyHours) : 0,
+        facing: normalizeFacing(p.facing),
         ageDays: Number.isFinite(p.ageDays)
           ? Math.max(0, p.ageDays)
           : (Number.isFinite(p.age)
@@ -311,10 +519,6 @@
       state.graves = Array.isArray(incoming.graves) ? incoming.graves : [];
       state.eventLog = Array.isArray(incoming.eventLog) ? incoming.eventLog.slice(0, 28) : [];
       state.city.houses = Array.isArray(incomingCity.houses) ? incomingCity.houses : [];
-
-      if (state.city.houses.length === 0) {
-        setupCity();
-      }
 
       const maxId = state.people.reduce((acc, p) => Math.max(acc, Number(p.id) || 0), 0);
       state.nextPersonId = Math.max(Number(state.nextPersonId) || 1, maxId + 1);
@@ -331,6 +535,12 @@
       )) {
         state.selectedBuilding = null;
       }
+      if (state.selectedBuilding && state.selectedBuilding.startsWith("building:")) {
+        const buildingKey = state.selectedBuilding.split(":")[1];
+        if (!isBuildingBuilt(buildingKey)) {
+          state.selectedBuilding = null;
+        }
+      }
       if (typeof state.selectedObject !== "string" && state.selectedObject !== null) {
         state.selectedObject = null;
       }
@@ -346,6 +556,7 @@
       if (!Number.isFinite(state.day) || state.day < 1) {
         state.day = 1;
       }
+      applyWorldSettings(incoming.worldSettings || state.worldSettings);
       computeDemandAndPrices();
       rebalanceJobs();
       syncUiToggles();
@@ -368,6 +579,10 @@
         ui.resourceMapBtn.classList.toggle("active", uiState.resourceView === "map");
         ui.resourceWorldBtn.classList.toggle("active", uiState.resourceView === "world");
       }
+      if (ui.worldSettingsModal) {
+        ui.worldSettingsModal.classList.toggle("hidden", !uiState.worldSettingsOpen);
+      }
+      document.body.classList.toggle("modal-open", uiState.worldSettingsOpen);
     }
 
     function updateZoomLabel() {
@@ -375,6 +590,122 @@
         return;
       }
       ui.zoomStat.textContent = `Zoom: ${Math.round(view.zoom * 100)}%`;
+    }
+
+    function resetMovementKeys() {
+      for (const code of Object.keys(keyState)) {
+        keyState[code] = false;
+      }
+    }
+
+    function isFormControlElement(target) {
+      if (!target || typeof target !== "object") {
+        return false;
+      }
+      const tagName = target.tagName;
+      return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || target.isContentEditable === true;
+    }
+
+    function formatForInput(value, digits = 3) {
+      if (Number.isInteger(value)) {
+        return String(value);
+      }
+      return String(Number(value.toFixed(digits)));
+    }
+
+    function readWorldSettingsFromForm() {
+      return {
+        autosaveIntervalSec: ui.wsAutosaveInput ? ui.wsAutosaveInput.value : undefined,
+        road: {
+          decayPerHour: ui.wsRoadDecayInput ? ui.wsRoadDecayInput.value : undefined,
+          addPerStep: ui.wsRoadStepInput ? ui.wsRoadStepInput.value : undefined,
+          addPerSegment: ui.wsRoadSegmentInput ? ui.wsRoadSegmentInput.value : undefined,
+          drawThreshold: ui.wsRoadThresholdInput ? ui.wsRoadThresholdInput.value : undefined
+        },
+        regen: {
+          forest: ui.wsRegenForestInput ? ui.wsRegenForestInput.value : undefined,
+          wildFood: ui.wsRegenWildFoodInput ? ui.wsRegenWildFoodInput.value : undefined,
+          wildHerbs: ui.wsRegenWildHerbsInput ? ui.wsRegenWildHerbsInput.value : undefined,
+          orchardFood: ui.wsRegenOrchardInput ? ui.wsRegenOrchardInput.value : undefined,
+          farmCrop: ui.wsRegenFarmCropInput ? ui.wsRegenFarmCropInput.value : undefined,
+          farmFertility: ui.wsRegenFarmFertilityInput ? ui.wsRegenFarmFertilityInput.value : undefined
+        },
+        buildCosts: {
+          townhall: {
+            logs: ui.wsCostTownhallLogsInput ? ui.wsCostTownhallLogsInput.value : undefined,
+            food: ui.wsCostTownhallFoodInput ? ui.wsCostTownhallFoodInput.value : undefined,
+            cash: ui.wsCostTownhallCashInput ? ui.wsCostTownhallCashInput.value : undefined
+          },
+          market: {
+            logs: ui.wsCostMarketLogsInput ? ui.wsCostMarketLogsInput.value : undefined,
+            food: ui.wsCostMarketFoodInput ? ui.wsCostMarketFoodInput.value : undefined,
+            cash: ui.wsCostMarketCashInput ? ui.wsCostMarketCashInput.value : undefined
+          },
+          farm: {
+            logs: ui.wsCostFarmLogsInput ? ui.wsCostFarmLogsInput.value : undefined,
+            food: ui.wsCostFarmFoodInput ? ui.wsCostFarmFoodInput.value : undefined,
+            cash: ui.wsCostFarmCashInput ? ui.wsCostFarmCashInput.value : undefined
+          },
+          house: {
+            logs: ui.wsCostHouseLogsInput ? ui.wsCostHouseLogsInput.value : undefined,
+            food: ui.wsCostHouseFoodInput ? ui.wsCostHouseFoodInput.value : undefined,
+            cash: ui.wsCostHouseCashInput ? ui.wsCostHouseCashInput.value : undefined
+          }
+        }
+      };
+    }
+
+    function fillWorldSettingsForm() {
+      if (!ui.wsAutosaveInput) {
+        return;
+      }
+      const settings = sanitizeWorldSettings(state.worldSettings);
+      ui.wsAutosaveInput.value = formatForInput(settings.autosaveIntervalSec, 0);
+      ui.wsRoadDecayInput.value = formatForInput(settings.road.decayPerHour);
+      ui.wsRoadStepInput.value = formatForInput(settings.road.addPerStep);
+      ui.wsRoadSegmentInput.value = formatForInput(settings.road.addPerSegment);
+      ui.wsRoadThresholdInput.value = formatForInput(settings.road.drawThreshold);
+
+      ui.wsRegenForestInput.value = formatForInput(settings.regen.forest);
+      ui.wsRegenWildFoodInput.value = formatForInput(settings.regen.wildFood);
+      ui.wsRegenWildHerbsInput.value = formatForInput(settings.regen.wildHerbs);
+      ui.wsRegenOrchardInput.value = formatForInput(settings.regen.orchardFood);
+      ui.wsRegenFarmCropInput.value = formatForInput(settings.regen.farmCrop);
+      ui.wsRegenFarmFertilityInput.value = formatForInput(settings.regen.farmFertility);
+
+      ui.wsCostTownhallLogsInput.value = formatForInput(settings.buildCosts.townhall.logs, 0);
+      ui.wsCostTownhallFoodInput.value = formatForInput(settings.buildCosts.townhall.food, 0);
+      ui.wsCostTownhallCashInput.value = formatForInput(settings.buildCosts.townhall.cash, 0);
+
+      ui.wsCostMarketLogsInput.value = formatForInput(settings.buildCosts.market.logs, 0);
+      ui.wsCostMarketFoodInput.value = formatForInput(settings.buildCosts.market.food, 0);
+      ui.wsCostMarketCashInput.value = formatForInput(settings.buildCosts.market.cash, 0);
+
+      ui.wsCostFarmLogsInput.value = formatForInput(settings.buildCosts.farm.logs, 0);
+      ui.wsCostFarmFoodInput.value = formatForInput(settings.buildCosts.farm.food, 0);
+      ui.wsCostFarmCashInput.value = formatForInput(settings.buildCosts.farm.cash, 0);
+
+      ui.wsCostHouseLogsInput.value = formatForInput(settings.buildCosts.house.logs, 0);
+      ui.wsCostHouseFoodInput.value = formatForInput(settings.buildCosts.house.food, 0);
+      ui.wsCostHouseCashInput.value = formatForInput(settings.buildCosts.house.cash, 0);
+    }
+
+    function setWorldSettingsModalOpen(open) {
+      uiState.worldSettingsOpen = Boolean(open);
+      if (uiState.worldSettingsOpen) {
+        fillWorldSettingsForm();
+        resetMovementKeys();
+      }
+      syncUiToggles();
+    }
+
+    async function applyWorldSettingsFromForm(saveAfter) {
+      applyWorldSettings(readWorldSettingsFromForm());
+      fillWorldSettingsForm();
+      addEvent("World settings applied.");
+      if (saveAfter) {
+        await saveToStorage(true);
+      }
     }
 
     async function saveToStorage(manual) {
@@ -456,8 +787,9 @@
     }
 
     function startNewSimulation() {
+      const currentSettings = cloneWorldSettings(sanitizeWorldSettings(state.worldSettings));
       state = createInitialState(true);
-      setupCity();
+      applyWorldSettings(currentSettings);
       initPopulation(Math.floor(rand(6, 11)));
       computeDemandAndPrices();
       camera.resetZoom();
@@ -471,11 +803,13 @@
 
     function createPerson(opts = {}) {
       const id = state.nextPersonId++;
-      const homeIndex = Math.floor(Math.random() * state.city.houses.length);
-      const home = state.city.houses[homeIndex];
+      const hasHomes = state.city.houses.length > 0;
+      const homeIndex = hasHomes ? Math.floor(Math.random() * state.city.houses.length) : -1;
+      const home = hasHomes ? state.city.houses[homeIndex] : null;
       const profession = pick(PROFESSIONS);
-      const x = home.x + rand(8, home.w - 8);
-      const y = home.y + rand(8, home.h - 8);
+      const hub = BUILDINGS.townhall || { x: WORLD.width * 0.5 - 40, y: WORLD.height * 0.5 - 30, w: 80, h: 60 };
+      const x = home ? home.x + rand(8, home.w - 8) : (hub.x + hub.w * 0.5 + rand(-65, 65));
+      const y = home ? home.y + rand(8, home.h - 8) : (hub.y + hub.h * 0.5 + rand(-65, 65));
       const isBirth = opts.isBirth === true;
       const person = {
         id,
@@ -493,6 +827,7 @@
         baseProfession: profession,
         experience: createExperienceProfile(profession),
         switchPenaltyHours: 0,
+        facing: "down",
         homeIndex,
         alive: true,
         task: null,
@@ -630,6 +965,39 @@
         loadFromStorage(true);
       });
 
+      if (ui.worldSettingsBtn) {
+        ui.worldSettingsBtn.addEventListener("click", () => {
+          setWorldSettingsModalOpen(true);
+        });
+      }
+
+      if (ui.worldSettingsCloseBtn) {
+        ui.worldSettingsCloseBtn.addEventListener("click", () => {
+          setWorldSettingsModalOpen(false);
+        });
+      }
+
+      if (ui.worldSettingsModal) {
+        ui.worldSettingsModal.addEventListener("click", (ev) => {
+          if (ev.target === ui.worldSettingsModal) {
+            setWorldSettingsModalOpen(false);
+          }
+        });
+      }
+
+      if (ui.worldSettingsApplyBtn) {
+        ui.worldSettingsApplyBtn.addEventListener("click", async () => {
+          await applyWorldSettingsFromForm(false);
+        });
+      }
+
+      if (ui.worldSettingsApplySaveBtn) {
+        ui.worldSettingsApplySaveBtn.addEventListener("click", async () => {
+          await applyWorldSettingsFromForm(true);
+          setWorldSettingsModalOpen(false);
+        });
+      }
+
       if (ui.zoomInBtn) {
         ui.zoomInBtn.addEventListener("click", () => {
           camera.zoomByFactor(ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
@@ -693,6 +1061,20 @@
       });
 
       window.addEventListener("keydown", (ev) => {
+        if (ev.code === "Escape" && uiState.worldSettingsOpen) {
+          setWorldSettingsModalOpen(false);
+          ev.preventDefault();
+          return;
+        }
+        if (uiState.worldSettingsOpen) {
+          if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
+            keyState[ev.code] = false;
+          }
+          return;
+        }
+        if (isFormControlElement(ev.target)) {
+          return;
+        }
         if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
           keyState[ev.code] = true;
           ev.preventDefault();
@@ -700,6 +1082,15 @@
       });
 
       window.addEventListener("keyup", (ev) => {
+        if (uiState.worldSettingsOpen) {
+          if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
+            keyState[ev.code] = false;
+          }
+          return;
+        }
+        if (isFormControlElement(ev.target)) {
+          return;
+        }
         if (Object.prototype.hasOwnProperty.call(keyState, ev.code)) {
           keyState[ev.code] = false;
           ev.preventDefault();
@@ -772,6 +1163,24 @@
       return state.people.find((p) => p.id === id) || null;
     }
 
+    function isBuildingBuilt(key) {
+      return Boolean(state.city && state.city.built && state.city.built[key]);
+    }
+
+    function hubPoint() {
+      const h = BUILDINGS.townhall || { x: WORLD.width * 0.5 - 40, y: WORLD.height * 0.5 - 30, w: 80, h: 60 };
+      return { x: h.x + h.w * 0.5, y: h.y + h.h * 0.5 };
+    }
+
+    function buildingTarget(key, fallbackOffsetX = 0, fallbackOffsetY = 0) {
+      const b = BUILDINGS[key];
+      if (b && isBuildingBuilt(key)) {
+        return { x: b.x + b.w * 0.5, y: b.y + b.h * 0.5 };
+      }
+      const hub = hubPoint();
+      return { x: hub.x + fallbackOffsetX, y: hub.y + fallbackOffsetY };
+    }
+
     function buildingRole(key) {
       if (key === "farm") return "farmer";
       if (key === "townhall") return "unemployed";
@@ -805,6 +1214,9 @@
         if (!b) {
           continue;
         }
+        if (!isBuildingBuilt(key)) {
+          continue;
+        }
         if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
           return `building:${key}`;
         }
@@ -824,6 +1236,12 @@
       return `${gx}:${gy}`;
     }
 
+    function roadEdgeKey(gx1, gy1, gx2, gy2) {
+      const a = `${gx1}:${gy1}`;
+      const b = `${gx2}:${gy2}`;
+      return a <= b ? `${a}|${b}` : `${b}|${a}`;
+    }
+
     function roadCellFromPos(x, y) {
       return {
         gx: Math.floor(x / ROAD.cell),
@@ -840,13 +1258,45 @@
       state.roadHeat[key] = clamp(prev + amount, 0, ROAD.maxHeat);
     }
 
+    function addRoadEdgeAt(gx1, gy1, gx2, gy2, amount) {
+      if (!Number.isFinite(gx1) || !Number.isFinite(gy1) || !Number.isFinite(gx2) || !Number.isFinite(gy2) || !Number.isFinite(amount) || amount <= 0) {
+        return;
+      }
+      if (gx1 === gx2 && gy1 === gy2) {
+        return;
+      }
+      const key = roadEdgeKey(gx1, gy1, gx2, gy2);
+      const prev = Number(state.roadEdges[key]) || 0;
+      state.roadEdges[key] = clamp(prev + amount, 0, ROAD.maxEdgeHeat);
+    }
+
+    function addRoadSegment(x1, y1, x2, y2, amount = ROAD.addPerSegment) {
+      const a = roadCellFromPos(x1, y1);
+      const b = roadCellFromPos(x2, y2);
+      const dx = b.gx - a.gx;
+      const dy = b.gy - a.gy;
+      const steps = Math.max(Math.abs(dx), Math.abs(dy));
+      if (steps === 0) {
+        addRoadHeatAt(a.gx, a.gy, amount * 0.45);
+        return;
+      }
+      let prevX = a.gx;
+      let prevY = a.gy;
+      addRoadHeatAt(prevX, prevY, amount * 0.25);
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const gx = Math.round(a.gx + dx * t);
+        const gy = Math.round(a.gy + dy * t);
+        addRoadHeatAt(gx, gy, amount * 0.45);
+        addRoadEdgeAt(prevX, prevY, gx, gy, amount);
+        prevX = gx;
+        prevY = gy;
+      }
+    }
+
     function addRoadFootstep(x, y, amount = ROAD.addPerStep) {
       const cell = roadCellFromPos(x, y);
       addRoadHeatAt(cell.gx, cell.gy, amount);
-      addRoadHeatAt(cell.gx + 1, cell.gy, amount * 0.26);
-      addRoadHeatAt(cell.gx - 1, cell.gy, amount * 0.26);
-      addRoadHeatAt(cell.gx, cell.gy + 1, amount * 0.26);
-      addRoadHeatAt(cell.gx, cell.gy - 1, amount * 0.26);
     }
 
     function decayRoadHeat(dtHours) {
@@ -860,6 +1310,14 @@
           delete state.roadHeat[key];
         } else {
           state.roadHeat[key] = next;
+        }
+      }
+      for (const key of Object.keys(state.roadEdges)) {
+        const next = (Number(state.roadEdges[key]) || 0) - loss;
+        if (next <= 0.01) {
+          delete state.roadEdges[key];
+        } else {
+          state.roadEdges[key] = next;
         }
       }
     }
@@ -889,14 +1347,59 @@
       return cells;
     }
 
+    function roadEdges(minHeat = ROAD.drawThreshold) {
+      const edges = [];
+      for (const [key, raw] of Object.entries(state.roadEdges)) {
+        const heat = Number(raw) || 0;
+        if (heat < minHeat) {
+          continue;
+        }
+        const pair = key.split("|");
+        if (pair.length !== 2) {
+          continue;
+        }
+        const a = pair[0].split(":");
+        const b = pair[1].split(":");
+        const gx1 = Number(a[0]);
+        const gy1 = Number(a[1]);
+        const gx2 = Number(b[0]);
+        const gy2 = Number(b[1]);
+        if (!Number.isFinite(gx1) || !Number.isFinite(gy1) || !Number.isFinite(gx2) || !Number.isFinite(gy2)) {
+          continue;
+        }
+        const x1 = gx1 * ROAD.cell + ROAD.cell * 0.5;
+        const y1 = gy1 * ROAD.cell + ROAD.cell * 0.5;
+        const x2 = gx2 * ROAD.cell + ROAD.cell * 0.5;
+        const y2 = gy2 * ROAD.cell + ROAD.cell * 0.5;
+        edges.push({ key, gx1, gy1, gx2, gy2, x1, y1, x2, y2, heat });
+      }
+      return edges;
+    }
+
     function findRoadAt(x, y) {
       let bestId = null;
       let bestDist = Infinity;
-      for (const c of roadCells(ROAD.clickThreshold)) {
+      for (const c of roadCells(ROAD.clickThreshold * 0.6)) {
         const d = Math.hypot(c.cx - x, c.cy - y);
         if (d <= ROAD.clickRadius && d < bestDist) {
           bestDist = d;
           bestId = `road:${c.key}`;
+        }
+      }
+      if (bestId) {
+        return bestId;
+      }
+      for (const e of roadEdges(ROAD.clickThreshold)) {
+        const vx = e.x2 - e.x1;
+        const vy = e.y2 - e.y1;
+        const lenSq = vx * vx + vy * vy || 1;
+        const t = clamp(((x - e.x1) * vx + (y - e.y1) * vy) / lenSq, 0, 1);
+        const px = e.x1 + vx * t;
+        const py = e.y1 + vy * t;
+        const d = Math.hypot(px - x, py - y);
+        if (d <= ROAD.clickRadius && d < bestDist) {
+          bestDist = d;
+          bestId = `road:${roadKey(Math.round((px - ROAD.cell * 0.5) / ROAD.cell), Math.round((py - ROAD.cell * 0.5) / ROAD.cell))}`;
         }
       }
       return bestId;
@@ -997,6 +1500,13 @@
       const dx = tx - person.x;
       const dy = ty - person.y;
       const dist = Math.hypot(dx, dy);
+      if (dist > 0.001) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          person.facing = dx >= 0 ? "right" : "left";
+        } else {
+          person.facing = dy >= 0 ? "down" : "up";
+        }
+      }
       if (dist <= 0.001) {
         person.x = tx;
         person.y = ty;
@@ -1093,7 +1603,7 @@
         if (bestFood && wildFood > 1) {
           return createTask("gather_food", { x: bestFood.patch.x, y: bestFood.patch.y }, 1.7, { patchIndex: bestFood.index });
         }
-        return createTask("idle", BUILDINGS.townhall, 1.5);
+        return createTask("idle", buildingTarget("townhall"), 1.5);
       }
 
       if (person.role === "woodcutter") {
@@ -1102,44 +1612,29 @@
         if (logsGap > 0 && forest && forest.forest.wood > 1.5) {
           return createTask("chop_wood", { x: forest.forest.x, y: forest.forest.y }, 2.2, { forestIndex: forest.index });
         }
-        return createTask("idle", BUILDINGS.townhall, 1.4);
+        return createTask("idle", buildingTarget("townhall"), 1.4);
       }
 
       if (person.role === "farmer") {
+        if (!isBuildingBuilt("farm")) {
+          const orchard = richestOrchard();
+          const bestFood = nearestPatchWith("food");
+          const orchardFood = orchard ? orchard.orchard.food : 0;
+          const wildFood = bestFood ? bestFood.patch.food : 0;
+          if (orchard && orchardFood >= wildFood && orchardFood > 1) {
+            return createTask("gather_orchard_food", { x: orchard.orchard.x, y: orchard.orchard.y }, 1.6, { orchardIndex: orchard.index });
+          }
+          if (bestFood && wildFood > 1) {
+            return createTask("gather_food", { x: bestFood.patch.x, y: bestFood.patch.y }, 1.7, { patchIndex: bestFood.index });
+          }
+          return createTask("idle", buildingTarget("townhall"), 1.4);
+        }
         if (state.resources.farm.crop > 1.2) {
           return createTask("harvest_farm", { x: BUILDINGS.farm.x + 55, y: BUILDINGS.farm.y + 40 }, 1.9);
         }
         return createTask("tend_farm", { x: BUILDINGS.farm.x + 70, y: BUILDINGS.farm.y + 50 }, 1.8);
       }
-
-      if (person.role === "sawmill_worker") {
-        const logsEnough = stocks.logs >= 2;
-        const needPlanks = demand.planks > stocks.planks;
-        if (state.city.companies.sawmill && logsEnough && needPlanks) {
-          return createTask("make_planks", { x: BUILDINGS.sawmill.x + 50, y: BUILDINGS.sawmill.y + 45 }, 1.8);
-        }
-        return createTask("idle", BUILDINGS.sawmill, 1.5);
-      }
-
-      if (person.role === "carpenter") {
-        const planksEnough = stocks.planks >= 2;
-        const needFurniture = demand.furniture > stocks.furniture;
-        if (state.city.companies.workshop && planksEnough && needFurniture) {
-          return createTask("make_furniture", { x: BUILDINGS.workshop.x + 60, y: BUILDINGS.workshop.y + 45 }, 2.2);
-        }
-        return createTask("idle", BUILDINGS.workshop, 1.4);
-      }
-
-      if (person.role === "medic") {
-        const herbsEnough = stocks.herbs >= 2;
-        const needKits = demand.medkits > stocks.medkits;
-        if (state.city.companies.clinic && herbsEnough && needKits) {
-          return createTask("make_medkit", { x: BUILDINGS.clinic.x + 50, y: BUILDINGS.clinic.y + 40 }, 1.8);
-        }
-        return createTask("idle", BUILDINGS.clinic, 1.3);
-      }
-
-      return createTask("idle", BUILDINGS.townhall, 1.2);
+      return createTask("idle", buildingTarget("townhall"), 1.2);
     }
 
     function decideTask(person) {
@@ -1150,15 +1645,12 @@
         if (person.inventory.food > 0 && person.hunger >= 28) {
           return createTask("eat_food", null, 0.1);
         }
-        if (person.hunger >= 55 && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
+        if (isBuildingBuilt("market") && person.hunger >= 55 && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
           return createTask("buy_food", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.5);
         }
       }
-      if (person.health < 34 && state.city.companies.clinic && state.market.stocks.medkits > 0 && person.money >= state.market.prices.medkits) {
-        return createTask("buy_medkit", { x: BUILDINGS.clinic.x + 45, y: BUILDINGS.clinic.y + 38 }, 0.5);
-      }
       if (sellableUnits(person) > 0) {
-        return createTask("sell_goods", { x: BUILDINGS.market.x + 56, y: BUILDINGS.market.y + 42 }, 0.7);
+        return createTask("sell_goods", buildingTarget("market", 18, 8), 0.7);
       }
       return pickWorkTask(person);
     }
@@ -1508,56 +2000,99 @@
 
     function updateResourceRegeneration(dtHours) {
       for (const forest of state.resources.forests) {
-        // Very slow regrowth: finite resource pressure remains meaningful.
-        const regen = 0.02 * dtHours;
+        const regen = REGEN.forest * dtHours;
         forest.wood = clamp(forest.wood + regen, 0, forest.maxWood);
       }
 
       for (const patch of state.resources.wild) {
-        patch.food = clamp(patch.food + 0.09 * dtHours, 0, patch.maxFood);
-        patch.herbs = clamp(patch.herbs + 0.05 * dtHours, 0, patch.maxHerbs);
+        patch.food = clamp(patch.food + REGEN.wildFood * dtHours, 0, patch.maxFood);
+        patch.herbs = clamp(patch.herbs + REGEN.wildHerbs * dtHours, 0, patch.maxHerbs);
       }
 
       for (const orchard of state.resources.orchards) {
-        orchard.food = clamp(orchard.food + 0.18 * dtHours, 0, orchard.maxFood);
+        orchard.food = clamp(orchard.food + REGEN.orchardFood * dtHours, 0, orchard.maxFood);
       }
 
       const farm = state.resources.farm;
       const growthFactor = clamp(farm.fertility / farm.maxFertility, 0.1, 1);
-      farm.crop = clamp(farm.crop + growthFactor * 0.45 * dtHours, 0, farm.maxCrop);
-      farm.fertility = clamp(farm.fertility + 0.09 * dtHours, 0, farm.maxFertility);
+      farm.crop = clamp(farm.crop + growthFactor * REGEN.farmCrop * dtHours, 0, farm.maxCrop);
+      farm.fertility = clamp(farm.fertility + REGEN.farmFertility * dtHours, 0, farm.maxFertility);
+    }
+
+    function canBuild(cost) {
+      return state.market.stocks.logs >= cost.logs &&
+        state.market.stocks.food >= cost.food &&
+        state.city.treasury >= cost.cash;
+    }
+
+    function spendBuild(cost) {
+      state.market.stocks.logs -= cost.logs;
+      state.market.stocks.food -= cost.food;
+      state.city.treasury -= cost.cash;
+      state.market.treasury += Math.round(cost.cash * 0.5);
+    }
+
+    function tryBuildBuilding(key, label, cost) {
+      if (isBuildingBuilt(key)) {
+        return false;
+      }
+      if (!canBuild(cost)) {
+        return false;
+      }
+      spendBuild(cost);
+      state.city.built[key] = true;
+      addEvent(`${label} was built.`);
+      return true;
+    }
+
+    function nextHousePosition() {
+      const idx = state.city.houses.length;
+      const cols = 4;
+      const spacingX = 88;
+      const spacingY = 76;
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const hub = hubPoint();
+      const cx = hub.x - ((cols - 1) * spacingX) * 0.5 + col * spacingX + rand(-8, 8);
+      const cy = hub.y + 130 + row * spacingY + rand(-8, 8);
+      return {
+        x: Math.round(cx - 32),
+        y: Math.round(cy - 24)
+      };
     }
 
     function cityProgressionAndConstruction(hourAbsolute) {
-      const pop = state.people.length;
-      state.city.stage = pop >= 7 ? "Expanding" : "Subsistence";
-
       if (hourAbsolute % 24 !== 0) {
         return;
       }
 
-      const needHomes = Math.max(0, Math.ceil((pop - state.city.houses.length * HOUSE_CAPACITY) / HOUSE_CAPACITY));
-      if (needHomes > 0) {
-        const needLogs = 14;
-        if (state.market.stocks.logs >= needLogs && state.city.treasury >= 70) {
-          state.market.stocks.logs -= needLogs;
-          state.city.treasury -= 70;
-
-          const x = 1110 + (state.city.houses.length % 5) * 96 + rand(-16, 16);
-          const y = 960 + Math.floor(state.city.houses.length / 5) * 86 + rand(-14, 14);
-          state.city.houses.push(createHouse(x, y));
-          addEvent("A new house was built.");
-        }
+      const pop = state.people.length;
+      let builtToday = false;
+      if (!isBuildingBuilt("townhall")) {
+        builtToday = tryBuildBuilding("townhall", "Town Hall", BUILD_COSTS.townhall);
+      } else if (!isBuildingBuilt("market")) {
+        builtToday = tryBuildBuilding("market", "Market", BUILD_COSTS.market);
+      } else if (!isBuildingBuilt("farm")) {
+        builtToday = tryBuildBuilding("farm", "Farm", BUILD_COSTS.farm);
       }
 
-      // City buys food for children/elderly support, injecting market money from city budget.
-      const socialFood = Math.min(state.market.stocks.food, Math.ceil(pop * 0.5));
-      if (socialFood > 0) {
-        state.market.stocks.food -= socialFood;
-        const spend = socialFood * state.market.prices.food;
-        if (state.city.treasury >= spend) {
-          state.city.treasury -= spend;
-          state.market.treasury += spend;
+      const needHomes = Math.max(0, Math.ceil((pop - state.city.houses.length * HOUSE_CAPACITY) / HOUSE_CAPACITY));
+      if (!builtToday && isBuildingBuilt("townhall") && needHomes > 0 && canBuild(BUILD_COSTS.house)) {
+        spendBuild(BUILD_COSTS.house);
+        const p = nextHousePosition();
+        state.city.houses.push(createHouse(p.x, p.y));
+        addEvent("A new house was built.");
+      }
+
+      if (isBuildingBuilt("market")) {
+        const socialFood = Math.min(state.market.stocks.food, Math.ceil(pop * 0.5));
+        if (socialFood > 0) {
+          state.market.stocks.food -= socialFood;
+          const spend = socialFood * state.market.prices.food;
+          if (state.city.treasury >= spend) {
+            state.city.treasury -= spend;
+            state.market.treasury += spend;
+          }
         }
       }
 
@@ -1580,6 +2115,17 @@
         }
       }
 
+      const builtCount = (isBuildingBuilt("townhall") ? 1 : 0) + (isBuildingBuilt("market") ? 1 : 0) + (isBuildingBuilt("farm") ? 1 : 0);
+      if (builtCount === 0) {
+        state.city.stage = "Wilderness";
+      } else if (builtCount < 3) {
+        state.city.stage = "Founding";
+      } else if (state.city.houses.length < 5) {
+        state.city.stage = "Settlement";
+      } else {
+        state.city.stage = "Expanding";
+      }
+
       state.day += 1;
     }
 
@@ -1590,14 +2136,13 @@
         rebalanceJobs();
       }
 
-      if (hourAbsolute % 12 === 0) {
-      // Light external trade: city exports small surplus, keeping economy from hard lock.
-      const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - 2);
-      const sold = Math.min(exportable, 3);
-      if (sold > 0) {
-        state.market.stocks.logs -= sold;
-        state.market.treasury += sold * state.market.prices.logs;
-      }
+      if (hourAbsolute % 12 === 0 && isBuildingBuilt("market")) {
+        const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - 2);
+        const sold = Math.min(exportable, 3);
+        if (sold > 0) {
+          state.market.stocks.logs -= sold;
+          state.market.treasury += sold * state.market.prices.logs;
+        }
       }
 
       cityProgressionAndConstruction(hourAbsolute);
@@ -1852,7 +2397,9 @@
           `;
           return;
         }
-        const residents = state.people.filter((p) => (p.homeIndex % state.city.houses.length) === idx).length;
+        const residents = state.city.houses.length > 0
+          ? state.people.filter((p) => p.homeIndex === idx).length
+          : 0;
         const capacity = HOUSE_CAPACITY;
         ui.buildingCard.innerHTML = `
           <h2>House #${idx + 1}</h2>
@@ -1966,22 +2513,43 @@
       return true;
     }
 
+    function drawSheetFrame(img, cols, rows, frame, row, dx, dy, dw, dh) {
+      if (!imageReady(img) || cols <= 0 || rows <= 0) {
+        return false;
+      }
+      const fw = Math.floor(img.naturalWidth / cols);
+      const fh = Math.floor(img.naturalHeight / rows);
+      if (fw <= 0 || fh <= 0) {
+        return false;
+      }
+      const fx = ((Math.floor(frame) % cols) + cols) % cols;
+      const fy = ((Math.floor(row) % rows) + rows) % rows;
+      ctx.drawImage(img, fx * fw, fy * fh, fw, fh, dx, dy, dw, dh);
+      return true;
+    }
+
+    function animatedFrame(fps, frames, seed = 0) {
+      if (!Number.isFinite(fps) || !Number.isFinite(frames) || frames <= 0) {
+        return 0;
+      }
+      return Math.floor((state.absHours * fps + seed) % frames);
+    }
+
     function drawPersonSprite(person) {
       const img = sprites.personSheet;
       if (!imageReady(img)) {
         return false;
       }
-      const looksLikeCutePlayerSheet = img.naturalWidth >= 192 && img.naturalHeight >= 320;
-      const cols = looksLikeCutePlayerSheet ? 3 : 4;
-      const rows = looksLikeCutePlayerSheet ? 5 : 4;
-      const fw = Math.floor(img.naturalWidth / cols);
-      const fh = Math.floor(img.naturalHeight / rows);
-      const frame = Math.floor((state.absHours * 3 + person.id) % (cols * rows));
-      const sx = (frame % cols) * fw;
-      const sy = Math.floor(frame / cols) * fh;
-      const dw = looksLikeCutePlayerSheet ? 18 : 16;
-      const dh = looksLikeCutePlayerSheet ? 24 : 24;
-      ctx.drawImage(img, sx, sy, fw, fh, person.x - dw * 0.5, person.y - dh * 0.78, dw, dh);
+      const anim = SHEET_ANIMS.person;
+      const moving = Boolean(person.task && person.task.phase === "move");
+      const facing = normalizeFacing(person.facing);
+      const row = moving ? (anim.rowByFacing[facing] ?? anim.rowByFacing.down) : anim.idleRow;
+      const frame = moving ? animatedFrame(anim.walkFps, anim.walkFrames, person.id * 0.37) : anim.idleFrame;
+      const dw = 24;
+      const dh = 32;
+      if (!drawSheetFrame(img, anim.cols, anim.rows, frame, row, person.x - dw * 0.5, person.y - dh * 0.82, dw, dh)) {
+        return false;
+      }
       return true;
     }
 
@@ -2018,15 +2586,6 @@
       }
       if (!generatedBuildingSprites.townhall) {
         generatedBuildingSprites.townhall = generateTintedSprite(sprites.house, "#7e8bb8", 0.2);
-      }
-      if (!generatedBuildingSprites.sawmill) {
-        generatedBuildingSprites.sawmill = generateTintedSprite(sprites.house, "#6f8a56", 0.2);
-      }
-      if (!generatedBuildingSprites.workshop) {
-        generatedBuildingSprites.workshop = generateTintedSprite(sprites.house, "#9b79b0", 0.2);
-      }
-      if (!generatedBuildingSprites.clinic) {
-        generatedBuildingSprites.clinic = generateTintedSprite(sprites.house, "#c98383", 0.2);
       }
     }
 
@@ -2152,7 +2711,12 @@
           ctx.lineWidth = 3;
           ctx.stroke();
         }
-        drawImageCover(sprites.wild, patch.x - 16, patch.y - 16, 32, 32);
+        const wildAnim = SHEET_ANIMS.wild;
+        const wildFrame = animatedFrame(wildAnim.fps, wildAnim.frames, i * 0.71);
+        const wildRow = i % wildAnim.rows;
+        if (!drawSheetFrame(sprites.wild, wildAnim.cols, wildAnim.rows, wildFrame, wildRow, patch.x - 16, patch.y - 16, 32, 32)) {
+          drawImageCover(sprites.wild, patch.x - 16, patch.y - 16, 32, 32);
+        }
         ctx.fillStyle = "#dce8aa";
         ctx.font = "12px Trebuchet MS";
         ctx.textAlign = "center";
@@ -2201,18 +2765,22 @@
         ctx.fillText(`Wood ${f.wood.toFixed(0)}`, f.x, f.y + 4);
       }
 
-      drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, generatedBuildingSprites.market || sprites.house, isSelectedBuilding("building:market"), sprites.iconMarket);
-      drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, generatedBuildingSprites.farm || sprites.house, isSelectedBuilding("building:farm"), sprites.iconFarm);
-      drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, generatedBuildingSprites.townhall || sprites.house, isSelectedBuilding("building:townhall"), sprites.iconTownhall);
-      drawBuilding(BUILDINGS.sawmill, "#6787ab", "#3f5d7a", "Sawmill", !state.city.companies.sawmill, generatedBuildingSprites.sawmill || sprites.house, isSelectedBuilding("building:sawmill"), sprites.iconSawmill);
-      drawBuilding(BUILDINGS.workshop, "#8968ad", "#5d437a", "Workshop", !state.city.companies.workshop, generatedBuildingSprites.workshop || sprites.house, isSelectedBuilding("building:workshop"), sprites.iconWorkshop);
-      drawBuilding(BUILDINGS.clinic, "#ae6666", "#744545", "Clinic", !state.city.companies.clinic, generatedBuildingSprites.clinic || sprites.house, isSelectedBuilding("building:clinic"), sprites.iconClinic);
+      if (isBuildingBuilt("market")) {
+        drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, generatedBuildingSprites.market || sprites.house, isSelectedBuilding("building:market"), sprites.iconMarket);
+      }
+      if (isBuildingBuilt("farm")) {
+        drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, generatedBuildingSprites.farm || sprites.house, isSelectedBuilding("building:farm"), sprites.iconFarm);
+      }
+      if (isBuildingBuilt("townhall")) {
+        drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, generatedBuildingSprites.townhall || sprites.house, isSelectedBuilding("building:townhall"), sprites.iconTownhall);
+      }
 
-      // Farm resources
-      ctx.fillStyle = "#f3edc8";
-      ctx.font = "13px Trebuchet MS";
-      ctx.textAlign = "left";
-      ctx.fillText(`Crop ${state.resources.farm.crop.toFixed(0)} | Fertility ${state.resources.farm.fertility.toFixed(0)}`, BUILDINGS.farm.x + 3, BUILDINGS.farm.y - 8);
+      if (isBuildingBuilt("farm")) {
+        ctx.fillStyle = "#f3edc8";
+        ctx.font = "13px Trebuchet MS";
+        ctx.textAlign = "left";
+        ctx.fillText(`Crop ${state.resources.farm.crop.toFixed(0)} | Fertility ${state.resources.farm.fertility.toFixed(0)}`, BUILDINGS.farm.x + 3, BUILDINGS.farm.y - 8);
+      }
     }
 
     function drawPeople() {
@@ -2306,7 +2874,7 @@
       if (!state.paused) {
         updateSimulation(dt);
         autosaveTimer += dt;
-        if (autosaveTimer >= AUTOSAVE_INTERVAL_SEC) {
+        if (autosaveTimer >= autosaveIntervalSec) {
           saveToStorage(false);
           autosaveTimer = 0;
         }
@@ -2320,7 +2888,6 @@
       resizeCanvas();
       const restored = await loadFromStorage(false);
       if (!restored) {
-        setupCity();
         initPopulation(8);
         computeDemandAndPrices();
         addEvent("Simulation started.");

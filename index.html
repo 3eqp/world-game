@@ -24,6 +24,9 @@
         <button id="saveBtn">Save</button>
         <button id="loadBtn">Load</button>
       </div>
+      <div class="controls">
+        <button id="worldSettingsBtn">World Settings</button>
+      </div>
 
       <div class="controls controls-three">
         <button id="speed1Btn" class="active">x1</button>
@@ -68,8 +71,7 @@
       </div>
 
       <div class="small-note">
-        Core loop: people age, lose health, earn money through production, buy food/medkits, and depend on downstream demand.
-        If furniture demand drops, workshop slows, sawmill slows, and woodcutters lose work.
+        Core loop: people age, lose health, earn money through production, buy food, and keep the city alive with farming, foraging, and logging.
       </div>
     </aside>
 
@@ -99,6 +101,106 @@
         <div class="event-log" id="eventLog"></div>
       </div>
     </aside>
+  </div>
+
+  <div class="modal-backdrop hidden" id="worldSettingsModal">
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="worldSettingsTitle">
+      <div class="modal-head">
+        <h2 id="worldSettingsTitle">World Settings</h2>
+        <button id="worldSettingsCloseBtn" class="danger">Close</button>
+      </div>
+      <div class="mini">Change core simulation parameters. Settings are stored in save data.</div>
+
+      <div class="settings-section">
+        <h3>General</h3>
+        <div class="settings-grid">
+          <label for="wsAutosaveInput">Autosave interval (sec)</label>
+          <input id="wsAutosaveInput" type="number" min="5" max="600" step="1">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Roads</h3>
+        <div class="settings-grid">
+          <label for="wsRoadDecayInput">Road decay / hour</label>
+          <input id="wsRoadDecayInput" type="number" min="0.001" max="2" step="0.001">
+
+          <label for="wsRoadStepInput">Road growth / step</label>
+          <input id="wsRoadStepInput" type="number" min="0.05" max="5" step="0.01">
+
+          <label for="wsRoadSegmentInput">Road growth / segment</label>
+          <input id="wsRoadSegmentInput" type="number" min="0.1" max="8" step="0.01">
+
+          <label for="wsRoadThresholdInput">Road draw threshold</label>
+          <input id="wsRoadThresholdInput" type="number" min="0.1" max="10" step="0.01">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Resource Regeneration</h3>
+        <div class="settings-grid">
+          <label for="wsRegenForestInput">Forest wood</label>
+          <input id="wsRegenForestInput" type="number" min="0" max="1" step="0.001">
+
+          <label for="wsRegenWildFoodInput">Wild food</label>
+          <input id="wsRegenWildFoodInput" type="number" min="0" max="1" step="0.001">
+
+          <label for="wsRegenWildHerbsInput">Wild herbs</label>
+          <input id="wsRegenWildHerbsInput" type="number" min="0" max="1" step="0.001">
+
+          <label for="wsRegenOrchardInput">Orchard food</label>
+          <input id="wsRegenOrchardInput" type="number" min="0" max="1" step="0.001">
+
+          <label for="wsRegenFarmCropInput">Farm crop</label>
+          <input id="wsRegenFarmCropInput" type="number" min="0" max="1" step="0.001">
+
+          <label for="wsRegenFarmFertilityInput">Farm fertility</label>
+          <input id="wsRegenFarmFertilityInput" type="number" min="0" max="1" step="0.001">
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Construction Costs</h3>
+        <div class="settings-grid cost-grid">
+          <div class="settings-subtitle">Town Hall</div><div></div>
+          <label for="wsCostTownhallLogsInput">Logs</label>
+          <input id="wsCostTownhallLogsInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostTownhallFoodInput">Food</label>
+          <input id="wsCostTownhallFoodInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostTownhallCashInput">Cash</label>
+          <input id="wsCostTownhallCashInput" type="number" min="0" max="99999" step="1">
+
+          <div class="settings-subtitle">Market</div><div></div>
+          <label for="wsCostMarketLogsInput">Logs</label>
+          <input id="wsCostMarketLogsInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostMarketFoodInput">Food</label>
+          <input id="wsCostMarketFoodInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostMarketCashInput">Cash</label>
+          <input id="wsCostMarketCashInput" type="number" min="0" max="99999" step="1">
+
+          <div class="settings-subtitle">Farm</div><div></div>
+          <label for="wsCostFarmLogsInput">Logs</label>
+          <input id="wsCostFarmLogsInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostFarmFoodInput">Food</label>
+          <input id="wsCostFarmFoodInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostFarmCashInput">Cash</label>
+          <input id="wsCostFarmCashInput" type="number" min="0" max="99999" step="1">
+
+          <div class="settings-subtitle">House</div><div></div>
+          <label for="wsCostHouseLogsInput">Logs</label>
+          <input id="wsCostHouseLogsInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostHouseFoodInput">Food</label>
+          <input id="wsCostHouseFoodInput" type="number" min="0" max="999" step="1">
+          <label for="wsCostHouseCashInput">Cash</label>
+          <input id="wsCostHouseCashInput" type="number" min="0" max="99999" step="1">
+        </div>
+      </div>
+
+      <div class="controls controls-two modal-actions">
+        <button id="worldSettingsApplyBtn">Apply</button>
+        <button id="worldSettingsApplySaveBtn">Apply + Save</button>
+      </div>
+    </div>
   </div>
 
   <script defer src="src/js/config.js"></script>

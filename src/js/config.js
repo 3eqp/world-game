@@ -38,9 +38,9 @@ window.WorldGame.Config = Object.freeze({
     iconClinic: "assets/cute/cow.png"
   },
   BUILDINGS: {
-    market: { x: 1360, y: 860, w: 132, h: 94, name: "Market" },
-    farm: { x: 510, y: 1120, w: 135, h: 98, name: "Farm" },
-    townhall: { x: 1180, y: 590, w: 142, h: 98, name: "Town Hall" }
+    market: { x: 1500, y: 1248, w: 132, h: 94, name: "Market" },
+    farm: { x: 1160, y: 1252, w: 135, h: 98, name: "Farm" },
+    townhall: { x: 1328, y: 1220, w: 142, h: 98, name: "Town Hall" }
   },
   ROLE_COLORS: {
     forager: "#d0d95c",

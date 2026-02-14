@@ -117,6 +117,15 @@
       color: #174036;
     }
 
+    input {
+      border: 1px solid #a99c83;
+      background: #f8f1e0;
+      color: #27302f;
+      border-radius: 8px;
+      padding: 8px 9px;
+      font-weight: 600;
+    }
+
     .danger {
       border-color: #8c5b5b;
       background: #ecd3d3;
@@ -275,6 +284,82 @@
       display: none;
     }
 
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      background: rgba(7, 14, 16, 0.68);
+      backdrop-filter: blur(2px);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: auto;
+      padding: 22px 12px;
+    }
+
+    .modal-window {
+      width: min(760px, 96vw);
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, #faf3e4, #efe2cb);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
+      padding: 14px;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .modal-head h2 {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 22px;
+    }
+
+    .settings-section {
+      border: 1px solid #d3c6ac;
+      background: #f9f3e7;
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+
+    .settings-section h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #2c3a36;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 130px;
+      gap: 8px 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .settings-subtitle {
+      font-weight: 700;
+      color: #345149;
+      margin-top: 2px;
+    }
+
+    .modal-actions {
+      margin-top: 12px;
+      margin-bottom: 0;
+    }
+
     .table {
       width: 100%;
       border-collapse: collapse;
@@ -328,5 +413,9 @@
       .overlay {
         min-width: 0;
         width: min(72vw, 560px);
+      }
+
+      .settings-grid {
+        grid-template-columns: 1fr;
       }
     }
