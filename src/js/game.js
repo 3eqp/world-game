@@ -9,7 +9,6 @@
       WORLD,
       HOUSE_CAPACITY,
       BUILDINGS,
-      ROLE_COLORS,
       GOODS,
       BASE_PRICES,
       NAMES,
@@ -408,6 +407,7 @@
       farm: null,
       townhall: null
     };
+    const worldDecor = buildWorldDecor();
 
     function pick(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
@@ -1899,22 +1899,40 @@
       const pop = state.people.length;
       const houses = state.city.houses.length;
       const constructionNeed = Math.max(0, Math.ceil((pop - houses * HOUSE_CAPACITY) / HOUSE_CAPACITY));
-      const foodNeed = Math.ceil(pop * 2.6 + 5);
-      const logsNeed = 10 + constructionNeed * 8;
+      const hungryPeople = state.people.filter((p) => p.hunger >= 60).length;
+      const weakPeople = state.people.filter((p) => p.health <= 50).length;
+      const hungerPressure = pop > 0 ? hungryPeople / pop : 0;
+      const healthPressure = pop > 0 ? weakPeople / pop : 0;
+      const foodNeed = Math.ceil(pop * (2.2 + hungerPressure * 1.05) + 4);
+      const logsNeed = Math.ceil(8 + constructionNeed * 8 + pop * 0.16);
+      const herbsNeed = Math.ceil(pop * 0.24 + weakPeople * 0.9 + hungryPeople * 0.2);
+      const medkitsNeed = Math.ceil(pop * 0.05 + weakPeople * 0.7 + healthPressure * pop * 0.45);
+      const planksNeed = Math.ceil(constructionNeed * 2 + logsNeed * 0.16);
+      const furnitureNeed = Math.ceil(houses * 0.4 + pop * 0.08);
 
       state.market.demand.food = Math.max(4, foodNeed);
-      state.market.demand.logs = Math.max(8, Math.ceil(logsNeed));
-      state.market.demand.planks = 0;
-      state.market.demand.furniture = 0;
-      state.market.demand.herbs = 0;
-      state.market.demand.medkits = 0;
+      state.market.demand.logs = Math.max(8, logsNeed);
+      state.market.demand.planks = Math.max(0, planksNeed);
+      state.market.demand.furniture = Math.max(0, furnitureNeed);
+      state.market.demand.herbs = Math.max(0, herbsNeed);
+      state.market.demand.medkits = Math.max(0, medkitsNeed);
 
       for (const good of GOODS) {
+        const basePrice = BASE_PRICES[good] || 1;
+        const prevPrice = Number(state.market.prices[good]) || basePrice;
         const supply = state.market.stocks[good] + 1;
         const demand = state.market.demand[good] + 1;
-        const scarcity = clamp(demand / supply, 0.45, 2.6);
-        const price = Math.round(BASE_PRICES[good] * scarcity);
-        state.market.prices[good] = Math.max(1, price);
+        const shortage = Math.max(0, demand - supply);
+        const shortageRatio = demand / supply;
+        const shortageBoost = shortage / demand;
+        const targetMultiplier = clamp(
+          0.6 + shortageRatio * 0.88 + shortageBoost * 0.55,
+          0.45,
+          3.25
+        );
+        const targetPrice = basePrice * targetMultiplier;
+        const smoothed = prevPrice * 0.55 + targetPrice * 0.45;
+        state.market.prices[good] = Math.max(1, Math.round(smoothed));
       }
     }
 
@@ -1926,17 +1944,55 @@
 
       const demand = state.market.demand;
       const stocks = state.market.stocks;
+      const prices = state.market.prices;
 
       const foodGap = Math.max(0, demand.food - stocks.food);
       const logsGap = Math.max(0, demand.logs - stocks.logs);
+      const herbsGap = Math.max(0, demand.herbs - stocks.herbs);
+      const foodPricePressure = Math.max(0.6, (prices.food || BASE_PRICES.food) / BASE_PRICES.food);
+      const logsPricePressure = Math.max(0.6, (prices.logs || BASE_PRICES.logs) / BASE_PRICES.logs);
+      const herbsPricePressure = Math.max(0.6, (prices.herbs || BASE_PRICES.herbs) / BASE_PRICES.herbs);
 
-      const wants = {
-        farmer: Math.max(1, Math.ceil(foodGap / 18)),
-        forager: Math.max(1, Math.ceil((foodGap * 0.5) / 16)),
-        woodcutter: Math.ceil(logsGap / 15)
+      const driver = {
+        farmer: (foodGap * 1.1 + demand.food * 0.1) * foodPricePressure,
+        forager: (foodGap * 0.55 + herbsGap * 1.2 + demand.herbs * 0.1) * ((foodPricePressure + herbsPricePressure) * 0.5),
+        woodcutter: (logsGap * 1.15 + demand.logs * 0.1) * logsPricePressure
+      };
+
+      if (!isBuildingBuilt("farm")) {
+        driver.farmer = 0;
+      }
+
+      const minimum = {
+        farmer: isBuildingBuilt("farm") && pop >= 3 ? 1 : 0,
+        forager: pop >= 1 ? 1 : 0,
+        woodcutter: pop >= 4 ? 1 : 0
       };
 
       const priority = ["farmer", "forager", "woodcutter"];
+      const wants = {
+        farmer: minimum.farmer,
+        forager: minimum.forager,
+        woodcutter: minimum.woodcutter
+      };
+      const fixedAssigned = wants.farmer + wants.forager + wants.woodcutter;
+      let remaining = Math.max(0, pop - fixedAssigned);
+      const totalDriver = Math.max(0.0001, driver.farmer + driver.forager + driver.woodcutter);
+
+      if (remaining > 0) {
+        wants.farmer += Math.floor(remaining * (driver.farmer / totalDriver));
+        wants.forager += Math.floor(remaining * (driver.forager / totalDriver));
+        wants.woodcutter += Math.floor(remaining * (driver.woodcutter / totalDriver));
+      }
+      remaining = pop - (wants.farmer + wants.forager + wants.woodcutter);
+      while (remaining > 0) {
+        const bestRole = priority.reduce((best, role) => (
+          driver[role] > driver[best] ? role : best
+        ), priority[0]);
+        wants[bestRole] += 1;
+        remaining -= 1;
+      }
+
       const roleCounts = {
         forager: 0,
         farmer: 0,
@@ -1960,21 +2016,44 @@
         return exp * 3 + sameRoleBonus + baseBonus + condition - switchPenalty;
       }
 
+      function sourceSurplus(sourceRole) {
+        if (!Object.prototype.hasOwnProperty.call(roleCounts, sourceRole)) {
+          return 999;
+        }
+        return roleCounts[sourceRole] - (wants[sourceRole] || 0);
+      }
+
       function bestCandidate(targetRole) {
         const candidates = state.people
-          .filter((p) => p.role !== targetRole)
-          .sort((a, b) => roleScore(b, targetRole) - roleScore(a, targetRole));
+          .filter((p) => p.role !== targetRole);
+        candidates.sort((a, b) => {
+          const surplusA = sourceSurplus(a.role);
+          const surplusB = sourceSurplus(b.role);
+          const sourceBiasA = a.role === "unemployed" ? 220 : (surplusA > 0 ? surplusA * 90 : -120);
+          const sourceBiasB = b.role === "unemployed" ? 220 : (surplusB > 0 ? surplusB * 90 : -120);
+          const scoreA = roleScore(a, targetRole) + sourceBiasA;
+          const scoreB = roleScore(b, targetRole) + sourceBiasB;
+          return scoreB - scoreA;
+        });
         return candidates.length > 0 ? candidates[0] : null;
       }
 
+      const maxChanges = Math.max(1, Math.floor(pop * 0.22));
+      let changes = 0;
       for (const role of priority) {
         const target = clamp(wants[role], 0, pop);
-        while (roleCounts[role] < target) {
+        while (roleCounts[role] < target && changes < maxChanges) {
           const candidate = bestCandidate(role);
           if (!candidate) {
             break;
           }
           const prev = candidate.role;
+          if (Object.prototype.hasOwnProperty.call(roleCounts, prev)) {
+            const prevNeed = wants[prev] || 0;
+            if (prev !== "unemployed" && roleCounts[prev] <= prevNeed) {
+              break;
+            }
+          }
           assignRole(candidate, role);
           if (Object.prototype.hasOwnProperty.call(roleCounts, prev)) {
             roleCounts[prev] = Math.max(0, roleCounts[prev] - 1);
@@ -1982,6 +2061,24 @@
             roleCounts.unemployed = Math.max(0, roleCounts.unemployed - 1);
           }
           roleCounts[role] += 1;
+          changes += 1;
+        }
+      }
+
+      for (const role of priority) {
+        const target = wants[role] || 0;
+        while (roleCounts[role] > target && changes < maxChanges) {
+          const candidates = state.people
+            .filter((p) => p.role === role)
+            .sort((a, b) => roleScore(a, role) - roleScore(b, role));
+          if (candidates.length === 0) {
+            break;
+          }
+          const candidate = candidates[0];
+          assignRole(candidate, "unemployed");
+          roleCounts[role] = Math.max(0, roleCounts[role] - 1);
+          roleCounts.unemployed += 1;
+          changes += 1;
         }
       }
 
@@ -2513,6 +2610,134 @@
       return true;
     }
 
+    function seedUnit(seed) {
+      const s = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+      return s - Math.floor(s);
+    }
+
+    function pushDecorSprite(list, spriteKey, x, y, w, h) {
+      list.push({
+        spriteKey,
+        x,
+        y,
+        w,
+        h,
+        sortY: y + h
+      });
+    }
+
+    function addTiledDecor(list, spriteKey, x, y, cols, rows, tileW, tileH, jitterSeed = 0) {
+      for (let gy = 0; gy < rows; gy++) {
+        for (let gx = 0; gx < cols; gx++) {
+          const seed = jitterSeed + gy * 91 + gx * 37;
+          const ox = (seedUnit(seed) - 0.5) * 2.2;
+          const oy = (seedUnit(seed + 0.77) - 0.5) * 2.2;
+          pushDecorSprite(
+            list,
+            spriteKey,
+            x + gx * tileW + ox,
+            y + gy * tileH + oy,
+            tileW,
+            tileH
+          );
+        }
+      }
+    }
+
+    function buildWorldDecor() {
+      const list = [];
+      const town = BUILDINGS.townhall || { x: WORLD.width * 0.5 - 60, y: WORLD.height * 0.5 - 50, w: 120, h: 90 };
+      const market = BUILDINGS.market || { x: town.x + 160, y: town.y + 28, w: 130, h: 94 };
+      const farm = BUILDINGS.farm || { x: town.x - 190, y: town.y + 34, w: 130, h: 95 };
+      const cx = town.x + town.w * 0.5;
+      const cy = town.y + town.h * 0.5;
+
+      // Courtyard paths around village center.
+      for (let gy = -7; gy <= 7; gy++) {
+        for (let gx = -10; gx <= 10; gx++) {
+          const seed = gx * 41 + gy * 97 + 1003;
+          const keep = Math.abs(gx) + Math.abs(gy) < 12 || seedUnit(seed) > 0.28;
+          if (!keep) {
+            continue;
+          }
+          pushDecorSprite(
+            list,
+            "pathTile",
+            cx + gx * 16 - 8 + (seedUnit(seed + 1) - 0.5) * 1.8,
+            cy + gy * 16 - 8 + (seedUnit(seed + 2) - 0.5) * 1.8,
+            16,
+            16
+          );
+        }
+      }
+
+      // Yard and farm patches.
+      addTiledDecor(list, "farm", farm.x - 76, farm.y + 28, 4, 3, 28, 28, 211);
+      addTiledDecor(list, "farm", farm.x + farm.w - 10, farm.y + 18, 3, 3, 24, 24, 517);
+      addTiledDecor(list, "farm", town.x - 48, town.y + town.h + 10, 3, 2, 24, 24, 733);
+      addTiledDecor(list, "farm", market.x + market.w + 10, market.y + 18, 2, 2, 26, 26, 967);
+
+      // Props near buildings.
+      pushDecorSprite(list, "townhall", town.x - 84, town.y + 18, 74, 34);
+      pushDecorSprite(list, "market", market.x + market.w - 18, market.y + market.h - 18, 20, 20);
+      pushDecorSprite(list, "iconFarm", farm.x + farm.w + 24, farm.y + 14, 26, 26);
+      pushDecorSprite(list, "iconTownhall", town.x + town.w + 22, town.y + 4, 32, 32);
+      pushDecorSprite(list, "iconWorkshop", market.x - 42, market.y + market.h - 10, 30, 30);
+      pushDecorSprite(list, "iconClinic", farm.x - 52, farm.y + farm.h - 24, 30, 30);
+      pushDecorSprite(list, "iconMarket", market.x + 14, market.y - 30, 24, 24);
+
+      // Decorative trees and critters across map.
+      for (let i = 0; i < 140; i++) {
+        const seed = i * 17.33 + 9.1;
+        const x = 48 + seedUnit(seed) * (WORLD.width - 96);
+        const y = 44 + seedUnit(seed + 1.7) * (WORLD.height - 88);
+        const nearVillage = Math.hypot(x - cx, y - cy) < 190;
+        if (nearVillage) {
+          continue;
+        }
+        const useLarge = seedUnit(seed + 5.1) > 0.42;
+        if (useLarge) {
+          const s = 0.7 + seedUnit(seed + 3.6) * 0.5;
+          pushDecorSprite(list, "forest", x - 22 * s, y - 54 * s, 44 * s, 56 * s);
+        } else {
+          const s = 0.85 + seedUnit(seed + 8.7) * 0.4;
+          pushDecorSprite(list, "sawmill", x - 34 * s, y - 19 * s, 68 * s, 34 * s);
+        }
+      }
+
+      for (let i = 0; i < 34; i++) {
+        const seed = i * 23.71 + 300.5;
+        const angle = seedUnit(seed) * Math.PI * 2;
+        const radius = 130 + seedUnit(seed + 1.2) * 320;
+        const x = cx + Math.cos(angle) * radius;
+        const y = cy + Math.sin(angle) * radius;
+        const pickAnimal = seedUnit(seed + 2.6);
+        const spriteKey = pickAnimal < 0.25
+          ? "iconTownhall"
+          : (pickAnimal < 0.5
+            ? "iconWorkshop"
+            : (pickAnimal < 0.75 ? "iconClinic" : "wild"));
+        const size = 24 + seedUnit(seed + 4.1) * 12;
+        pushDecorSprite(list, spriteKey, x - size * 0.5, y - size * 0.65, size, size);
+      }
+
+      list.sort((a, b) => a.sortY - b.sortY);
+      return list;
+    }
+
+    function drawWorldDecor() {
+      for (const item of worldDecor) {
+        const sprite = sprites[item.spriteKey];
+        drawImageCover(sprite, item.x, item.y, item.w, item.h);
+      }
+    }
+
+    function drawSelectionMarker(x, y, size = 18) {
+      if (!drawImageCover(sprites.market, x - size * 0.5, y - size * 1.08, size, size)) {
+        drawImageCover(sprites.pathTile, x - size * 0.5, y - size * 1.08, size, size);
+      }
+    }
+
     function drawSheetFrame(img, cols, rows, frame, row, dx, dy, dw, dh) {
       if (!imageReady(img) || cols <= 0 || rows <= 0) {
         return false;
@@ -2545,8 +2770,8 @@
       const facing = normalizeFacing(person.facing);
       const row = moving ? (anim.rowByFacing[facing] ?? anim.rowByFacing.down) : anim.idleRow;
       const frame = moving ? animatedFrame(anim.walkFps, anim.walkFrames, person.id * 0.37) : anim.idleFrame;
-      const dw = 24;
-      const dh = 32;
+      const dw = 34;
+      const dh = 46;
       if (!drawSheetFrame(img, anim.cols, anim.rows, frame, row, person.x - dw * 0.5, person.y - dh * 0.82, dw, dh)) {
         return false;
       }
@@ -2590,77 +2815,69 @@
     }
 
     function drawBuilding(b, fill, stroke, label, locked = false, sprite = null, selected = false, icon = null) {
-      ctx.fillStyle = locked ? "#5d625f" : fill;
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2;
-      ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.strokeRect(b.x, b.y, b.w, b.h);
-      drawImageCover(sprite, b.x + 4, b.y + 4, b.w - 8, b.h - 8);
+      const mainSprite = sprite || sprites.house;
+      const dx = b.x - 12;
+      const dy = b.y - 22;
+      const dw = b.w + 24;
+      const dh = b.h + 30;
+      drawImageCover(mainSprite, dx, dy, dw, dh);
       if (imageReady(icon)) {
-        drawImageCover(icon, b.x + b.w - 28, b.y + 6, 20, 20);
+        drawImageCover(icon, b.x + b.w - 24, b.y - 16, 20, 20);
       }
       if (selected) {
-        ctx.strokeStyle = "#ffe9a8";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
+        drawSelectionMarker(b.x + b.w * 0.5, b.y - 4, 20);
       }
-      ctx.fillStyle = locked ? "#ced0ce" : "#f6f0df";
-      ctx.font = "14px Trebuchet MS";
-      ctx.textAlign = "center";
-      ctx.fillText(label + (locked ? " (locked)" : ""), b.x + b.w / 2, b.y + b.h / 2 + 5);
+      if (locked) {
+        ctx.globalAlpha = 0.3;
+        drawImageCover(sprites.pathTile, b.x + b.w * 0.5 - 16, b.y + b.h * 0.5 - 16, 32, 32);
+        ctx.globalAlpha = 1;
+      }
     }
 
     function drawRoadNetwork() {
-      const cells = roadCells(ROAD.drawThreshold);
-      if (cells.length === 0) {
+      const edges = roadEdges(ROAD.drawThreshold);
+      const cells = roadCells(ROAD.drawThreshold * 0.86);
+      if (cells.length === 0 && edges.length === 0) {
         return;
       }
-      const byKey = new Map(cells.map((c) => [c.key, c]));
-      if (imageReady(sprites.pathTile)) {
-        const pathPattern = ctx.createPattern(sprites.pathTile, "repeat");
-        ctx.strokeStyle = pathPattern || "rgba(219, 199, 146, 0.45)";
-        ctx.fillStyle = pathPattern || "rgba(219, 199, 146, 0.42)";
-      } else {
-        ctx.strokeStyle = "rgba(219, 199, 146, 0.45)";
-        ctx.fillStyle = "rgba(219, 199, 146, 0.42)";
-      }
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      for (const c of cells) {
-        const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
-        const width = 7 + normalized * 11;
-        const right = byKey.get(roadKey(c.gx + 1, c.gy));
-        const down = byKey.get(roadKey(c.gx, c.gy + 1));
-        if (right) {
-          ctx.lineWidth = width;
+
+      const tile = imageReady(sprites.pathTile) ? sprites.pathTile : null;
+      if (!tile) {
+        ctx.strokeStyle = "rgba(219, 199, 146, 0.48)";
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        for (const e of edges) {
+          const normalized = clamp(e.heat / ROAD.maxEdgeHeat, 0, 1);
+          ctx.lineWidth = 9 + normalized * 10;
           ctx.beginPath();
-          ctx.moveTo(c.cx, c.cy);
-          ctx.lineTo(right.cx, right.cy);
+          ctx.moveTo(e.x1, e.y1);
+          ctx.lineTo(e.x2, e.y2);
           ctx.stroke();
         }
-        if (down) {
-          ctx.lineWidth = width;
-          ctx.beginPath();
-          ctx.moveTo(c.cx, c.cy);
-          ctx.lineTo(down.cx, down.cy);
-          ctx.stroke();
+        return;
+      }
+
+      for (const e of edges) {
+        const length = Math.hypot(e.x2 - e.x1, e.y2 - e.y1);
+        const normalized = clamp(e.heat / ROAD.maxEdgeHeat, 0, 1);
+        const size = 14 + normalized * 8;
+        const steps = Math.max(1, Math.floor(length / (size * 0.55)));
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const x = e.x1 + (e.x2 - e.x1) * t - size * 0.5;
+          const y = e.y1 + (e.y2 - e.y1) * t - size * 0.5;
+          drawImageCover(tile, x, y, size, size);
         }
       }
+
       for (const c of cells) {
         const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
-        const radius = 5 + normalized * 8;
-        ctx.globalAlpha = 0.45 + normalized * 0.35;
-        ctx.beginPath();
-        ctx.arc(c.cx, c.cy, radius, 0, Math.PI * 2);
-        ctx.fill();
+        const size = 12 + normalized * 8;
+        drawImageCover(tile, c.cx - size * 0.5, c.cy - size * 0.5, size, size);
         if (isSelectedObject(`road:${c.key}`)) {
-          ctx.globalAlpha = 1;
-          ctx.strokeStyle = "#ffe9a8";
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          drawSelectionMarker(c.cx, c.cy - 2, 16);
         }
       }
-      ctx.globalAlpha = 1;
     }
 
     function renderMapBase() {
@@ -2678,91 +2895,53 @@
         ctx.fillRect(0, 0, WORLD.width, WORLD.height);
       }
 
+      drawWorldDecor();
       drawRoadNetwork();
 
       // Home district
       for (let i = 0; i < state.city.houses.length; i++) {
         const h = state.city.houses[i];
-        ctx.fillStyle = "#b78f66";
-        ctx.strokeStyle = "#815f3b";
-        ctx.lineWidth = 2;
-        ctx.fillRect(h.x, h.y, h.w, h.h);
-        ctx.strokeRect(h.x, h.y, h.w, h.h);
-        drawImageCover(sprites.house, h.x + 6, h.y + 6, h.w - 12, h.h - 12);
+        drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 18, h.y + h.h - 8, 16, 16);
+        drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 2, h.y + h.h - 8, 16, 16);
+        drawImageCover(sprites.farm, h.x + h.w - 8, h.y + h.h - 12, 22, 22);
+        drawImageCover(sprites.house, h.x - 12, h.y - 22, h.w + 24, h.h + 32);
         if (isSelectedBuilding(`house:${i}`)) {
-          ctx.strokeStyle = "#ffe9a8";
-          ctx.lineWidth = 3;
-          ctx.strokeRect(h.x - 2, h.y - 2, h.w + 4, h.h + 4);
+          drawSelectionMarker(h.x + h.w * 0.5, h.y - 8, 20);
         }
       }
 
       // Resource patches
       for (let i = 0; i < state.resources.wild.length; i++) {
         const patch = state.resources.wild[i];
-        ctx.beginPath();
-        ctx.fillStyle = "rgba(166, 192, 86, 0.35)";
-        ctx.strokeStyle = "rgba(188, 220, 97, 0.85)";
-        ctx.lineWidth = 2;
-        ctx.arc(patch.x, patch.y, 44, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        if (isSelectedObject(`wild:${i}`)) {
-          ctx.strokeStyle = "#ffe9a8";
-          ctx.lineWidth = 3;
-          ctx.stroke();
-        }
+        drawImageCover(sprites.sawmill, patch.x - 54, patch.y + 2, 108, 54);
         const wildAnim = SHEET_ANIMS.wild;
         const wildFrame = animatedFrame(wildAnim.fps, wildAnim.frames, i * 0.71);
         const wildRow = i % wildAnim.rows;
-        if (!drawSheetFrame(sprites.wild, wildAnim.cols, wildAnim.rows, wildFrame, wildRow, patch.x - 16, patch.y - 16, 32, 32)) {
-          drawImageCover(sprites.wild, patch.x - 16, patch.y - 16, 32, 32);
+        if (!drawSheetFrame(sprites.wild, wildAnim.cols, wildAnim.rows, wildFrame, wildRow, patch.x - 22, patch.y - 34, 44, 44)) {
+          drawImageCover(sprites.wild, patch.x - 22, patch.y - 34, 44, 44);
         }
-        ctx.fillStyle = "#dce8aa";
-        ctx.font = "12px Trebuchet MS";
-        ctx.textAlign = "center";
-        ctx.fillText(`F${patch.food.toFixed(0)} H${patch.herbs.toFixed(0)}`, patch.x, patch.y + 4);
+        if (isSelectedObject(`wild:${i}`)) {
+          drawSelectionMarker(patch.x, patch.y - 20, 18);
+        }
       }
 
       for (let i = 0; i < state.resources.orchards.length; i++) {
         const orchard = state.resources.orchards[i];
-        ctx.beginPath();
-        ctx.fillStyle = "rgba(207, 136, 76, 0.34)";
-        ctx.strokeStyle = "rgba(235, 175, 90, 0.85)";
-        ctx.lineWidth = 2;
-        ctx.arc(orchard.x, orchard.y, 42, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        drawImageCover(sprites.sawmill, orchard.x - 62, orchard.y - 24, 124, 62);
+        drawImageCover(sprites.sawmill, orchard.x - 48, orchard.y + 2, 96, 48);
+        drawImageCover(sprites.farm, orchard.x - 22, orchard.y + 2, 44, 44);
         if (isSelectedObject(`orchard:${i}`)) {
-          ctx.strokeStyle = "#ffe9a8";
-          ctx.lineWidth = 3;
-          ctx.stroke();
+          drawSelectionMarker(orchard.x, orchard.y - 20, 18);
         }
-        drawImageCover(sprites.farm, orchard.x - 16, orchard.y - 16, 32, 32);
-        ctx.fillStyle = "#ffe6bc";
-        ctx.font = "12px Trebuchet MS";
-        ctx.textAlign = "center";
-        ctx.fillText(`Orchard ${orchard.food.toFixed(0)}`, orchard.x, orchard.y + 4);
       }
 
       for (let i = 0; i < state.resources.forests.length; i++) {
         const f = state.resources.forests[i];
-        ctx.beginPath();
-        ctx.fillStyle = "rgba(72, 124, 66, 0.45)";
-        ctx.strokeStyle = "rgba(110, 176, 97, 0.8)";
-        ctx.lineWidth = 2;
-        ctx.arc(f.x, f.y, 48, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        drawImageCover(sprites.forest, f.x - 32, f.y - 70, 64, 80);
+        drawImageCover(sprites.sawmill, f.x - 52, f.y - 10, 104, 52);
         if (isSelectedObject(`forest:${i}`)) {
-          ctx.strokeStyle = "#ffe9a8";
-          ctx.lineWidth = 3;
-          ctx.stroke();
+          drawSelectionMarker(f.x, f.y - 24, 18);
         }
-        drawImageCover(sprites.forest, f.x - 18, f.y - 18, 36, 36);
-        ctx.fillStyle = "#d3f0cb";
-        ctx.font = "12px Trebuchet MS";
-        ctx.textAlign = "center";
-        ctx.fillText(`Wood ${f.wood.toFixed(0)}`, f.x, f.y + 4);
       }
 
       if (isBuildingBuilt("market")) {
@@ -2774,52 +2953,22 @@
       if (isBuildingBuilt("townhall")) {
         drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, generatedBuildingSprites.townhall || sprites.house, isSelectedBuilding("building:townhall"), sprites.iconTownhall);
       }
-
-      if (isBuildingBuilt("farm")) {
-        ctx.fillStyle = "#f3edc8";
-        ctx.font = "13px Trebuchet MS";
-        ctx.textAlign = "left";
-        ctx.fillText(`Crop ${state.resources.farm.crop.toFixed(0)} | Fertility ${state.resources.farm.fertility.toFixed(0)}`, BUILDINGS.farm.x + 3, BUILDINGS.farm.y - 8);
-      }
     }
 
     function drawPeople() {
       for (const person of state.people) {
-        const color = ROLE_COLORS[person.role] || ROLE_COLORS.unemployed;
-
-        if (person.task && person.task.phase === "move") {
-          ctx.strokeStyle = "rgba(245, 245, 245, 0.15)";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(person.x, person.y);
-          ctx.lineTo(person.task.targetX, person.task.targetY);
-          ctx.stroke();
-        }
-
         const drewSprite = drawPersonSprite(person);
         if (!drewSprite) {
-          ctx.beginPath();
-          ctx.arc(person.x, person.y, 6, 0, Math.PI * 2);
-          ctx.fillStyle = color;
-          ctx.fill();
+          drawImageCover(sprites.iconTownhall, person.x - 14, person.y - 26, 28, 28);
         }
 
         if (person.id === state.selectedId) {
-          ctx.strokeStyle = "#fff2c5";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(person.x, person.y, 9, 0, Math.PI * 2);
-          ctx.stroke();
+          drawSelectionMarker(person.x, person.y - 18, 16);
 
           ctx.fillStyle = "#fdf7e0";
           ctx.font = "11px Trebuchet MS";
           ctx.textAlign = "center";
           ctx.fillText(person.name, person.x, person.y - 10);
-        }
-
-        if (person.health < 22) {
-          ctx.fillStyle = "#f26f6f";
-          ctx.fillRect(person.x - 5, person.y + 8, 10, 2);
         }
       }
     }
