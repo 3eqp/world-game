@@ -1,5 +1,6 @@
 const http = require("http");
 const fs = require("fs");
+const fsPromises = require("fs").promises;
 const path = require("path");
 const { URL } = require("url");
 
@@ -7,30 +8,35 @@ const PORT = Number(process.env.PORT || 8080);
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_KEY_LENGTH = 64;
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 function safeSaveFileForKey(key) {
-  const clean = String(key || "default").replace(/[^a-z0-9_-]+/gi, "_").slice(0, 80) || "default";
+  if (!key || typeof key !== "string") {
+    throw new Error("Invalid key");
+  }
+  if (key.length > MAX_KEY_LENGTH) {
+    throw new Error("Key too long");
+  }
+  const clean = key.replace(/[^a-z0-9_-]+/gi, "_").slice(0, 80) || "default";
   return path.join(DATA_DIR, `${clean}.json`);
 }
 
 function sendJson(res, status, payload) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff"
   });
   res.end(JSON.stringify(payload));
 }
 
-function sendFile(res, filePath) {
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      sendJson(res, 404, { error: "Not found" });
-      return;
-    }
+async function sendFile(res, filePath) {
+  try {
+    const data = await fsPromises.readFile(filePath);
     const ext = path.extname(filePath).toLowerCase();
     const typeMap = {
       ".html": "text/html; charset=utf-8",
@@ -42,12 +48,19 @@ function sendFile(res, filePath) {
       ".jpeg": "image/jpeg",
       ".svg": "image/svg+xml"
     };
-    res.writeHead(200, {
+    const headers = {
       "Content-Type": typeMap[ext] || "application/octet-stream",
-      "Cache-Control": ext === ".html" ? "no-store" : "public, max-age=300"
-    });
+      "Cache-Control": ext === ".html" ? "no-store" : "public, max-age=300",
+      "X-Content-Type-Options": "nosniff"
+    };
+    if (ext === ".html") {
+      headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'";
+    }
+    res.writeHead(200, headers);
     res.end(data);
-  });
+  } catch (err) {
+    sendJson(res, 404, { error: "Not found" });
+  }
 }
 
 function readBody(req) {
@@ -92,10 +105,11 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const filePath = safeSaveFileForKey(parsed.key);
-      fs.writeFileSync(filePath, JSON.stringify(parsed.payload), "utf8");
+      await fsPromises.writeFile(filePath, JSON.stringify(parsed.payload), "utf8");
       sendJson(res, 200, { ok: true });
       return;
-    } catch (_err) {
+    } catch (err) {
+      console.error("Save error:", err.message);
       sendJson(res, 500, { error: "Could not save" });
       return;
     }
@@ -105,14 +119,19 @@ const server = http.createServer(async (req, res) => {
     try {
       const key = reqUrl.searchParams.get("key") || "default";
       const filePath = safeSaveFileForKey(key);
-      if (!fs.existsSync(filePath)) {
-        sendJson(res, 404, { error: "No save" });
-        return;
+      try {
+        const raw = await fsPromises.readFile(filePath, "utf8");
+        sendJson(res, 200, JSON.parse(raw));
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          sendJson(res, 404, { error: "No save" });
+        } else {
+          throw err;
+        }
       }
-      const raw = fs.readFileSync(filePath, "utf8");
-      sendJson(res, 200, JSON.parse(raw));
       return;
-    } catch (_err) {
+    } catch (err) {
+      console.error("Load error:", err.message);
       sendJson(res, 500, { error: "Could not load" });
       return;
     }
@@ -124,7 +143,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 400, { error: "Bad path" });
       return;
     }
-    sendFile(res, filePath);
+    await sendFile(res, filePath);
     return;
   }
 

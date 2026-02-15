@@ -139,6 +139,7 @@
     };
     let LIFE_SPAN_DAYS = 100;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
+    const SIMPLE_GRAPHICS = true;
     const ROAD = {
       cell: 16,
       clickRadius: 12,
@@ -1251,9 +1252,18 @@
 
     function diePerson(person, reason) {
       person.alive = false;
+      const transfer = Math.max(0, Math.round(Number(person.money) || 0));
+      if (transfer > 0) {
+        state.city.treasury += transfer;
+        person.money = 0;
+      }
       state.graves.push({ name: person.name, ageDays: person.ageDays, reason });
       removePersonById(person.id, reason);
-      addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}).`);
+      if (transfer > 0) {
+        addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}). $${transfer} transferred to city treasury.`);
+      } else {
+        addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}).`);
+      }
     }
 
     function initPopulation(count) {
@@ -1937,6 +1947,7 @@
         phase: "act",
         targetX: target ? target.x : null,
         targetY: target ? target.y : null,
+        duration: durationHours,
         remaining: durationHours,
         meta
       };
@@ -2323,8 +2334,14 @@
           const done = moveToward(person, task.targetX, task.targetY, dtHours);
           if (done) {
             task.phase = "act";
+            if (!Number.isFinite(task.duration) || task.duration <= 0) {
+              task.duration = Math.max(0.001, Number(task.remaining) || 0.001);
+            }
           }
         } else {
+          if (!Number.isFinite(task.duration) || task.duration <= 0) {
+            task.duration = Math.max(0.001, Number(task.remaining) || 0.001);
+          }
           task.remaining -= dtHours;
           if (task.remaining <= 0) {
             executeTask(person, task);
@@ -3313,6 +3330,31 @@
       if (staticWorldLayer.ready) {
         return true;
       }
+      if (SIMPLE_GRAPHICS) {
+        const cctxSimple = staticWorldLayer.ctx;
+        if (!cctxSimple) {
+          return false;
+        }
+        cctxSimple.clearRect(0, 0, WORLD.width, WORLD.height);
+        cctxSimple.fillStyle = "#2f7a43";
+        cctxSimple.fillRect(0, 0, WORLD.width, WORLD.height);
+        cctxSimple.strokeStyle = "rgba(255,255,255,0.04)";
+        cctxSimple.lineWidth = 1;
+        for (let x = 0; x <= WORLD.width; x += 64) {
+          cctxSimple.beginPath();
+          cctxSimple.moveTo(x, 0);
+          cctxSimple.lineTo(x, WORLD.height);
+          cctxSimple.stroke();
+        }
+        for (let y = 0; y <= WORLD.height; y += 64) {
+          cctxSimple.beginPath();
+          cctxSimple.moveTo(0, y);
+          cctxSimple.lineTo(WORLD.width, y);
+          cctxSimple.stroke();
+        }
+        staticWorldLayer.ready = true;
+        return true;
+      }
       const staticAssetsReady = imageReady(sprites.background) &&
         imageReady(sprites.springTileset) &&
         imageReady(sprites.freePack) &&
@@ -3400,6 +3442,14 @@
     }
 
     function drawSelectionMarker(x, y, size = 18) {
+      if (SIMPLE_GRAPHICS) {
+        ctx.beginPath();
+        ctx.arc(x, y - size * 0.25, size * 0.38, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ffe08a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        return;
+      }
       if (!drawImageCover(sprites.market, x - size * 0.5, y - size * 1.08, size, size)) {
         drawImageCover(sprites.pathTile, x - size * 0.5, y - size * 1.08, size, size);
       }
@@ -3441,6 +3491,9 @@
     }
 
     function drawPersonSprite(person) {
+      if (SIMPLE_GRAPHICS) {
+        return false;
+      }
       const anim = SHEET_ANIMS.person;
       const hasMoveTask = Boolean(person.task && person.task.phase === "move");
       const distToTarget = person.task ? Math.hypot((person.task.targetX || person.x) - person.x, (person.task.targetY || person.y) - person.y) : 0;
@@ -3523,6 +3576,25 @@
     }
 
     function drawBuilding(b, fill, stroke, label, locked = false, sprite = null, selected = false, icon = null) {
+      if (SIMPLE_GRAPHICS) {
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        ctx.fillStyle = "#f3f4dc";
+        ctx.font = "10px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.fillText(label, b.x + b.w * 0.5, b.y + b.h * 0.58);
+        if (selected) {
+          drawSelectionMarker(b.x + b.w * 0.5, b.y - 4, 20);
+        }
+        if (locked) {
+          ctx.fillStyle = "rgba(20,20,20,0.2)";
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+        }
+        return;
+      }
       const mainSprite = sprite || sprites.house;
       const scale = 1.34;
       const dw = b.w * scale;
@@ -3550,8 +3622,8 @@
         return;
       }
 
-      const hasRoadSheet = imageReady(sprites.roadSheet);
-      const fallbackTile = imageReady(sprites.pathTile) ? sprites.pathTile : null;
+      const hasRoadSheet = !SIMPLE_GRAPHICS && imageReady(sprites.roadSheet);
+      const fallbackTile = SIMPLE_GRAPHICS ? null : (imageReady(sprites.pathTile) ? sprites.pathTile : null);
       if (!hasRoadSheet && !fallbackTile) {
         ctx.strokeStyle = "rgba(219, 199, 146, 0.48)";
         ctx.lineCap = "round";
@@ -3667,10 +3739,77 @@
     }
 
     function renderMapBase() {
-      ensureGeneratedBuildingSprites();
+      if (!SIMPLE_GRAPHICS) {
+        ensureGeneratedBuildingSprites();
+      }
       ensureStaticWorldLayer();
       ctx.drawImage(staticWorldLayer.canvas, 0, 0);
       drawRoadNetwork();
+
+      if (SIMPLE_GRAPHICS) {
+        for (let i = 0; i < state.city.houses.length; i++) {
+          const h = state.city.houses[i];
+          ctx.fillStyle = "#cab28a";
+          ctx.strokeStyle = "#6f5a3b";
+          ctx.lineWidth = 2;
+          ctx.fillRect(h.x, h.y, h.w, h.h);
+          ctx.strokeRect(h.x, h.y, h.w, h.h);
+          ctx.fillStyle = "#8d734d";
+          ctx.fillRect(h.x + h.w * 0.34, h.y + h.h * 0.58, h.w * 0.32, h.h * 0.42);
+          if (isSelectedBuilding(`house:${i}`)) {
+            drawSelectionMarker(h.x + h.w * 0.5, h.y - 8, 20);
+          }
+        }
+
+        for (let i = 0; i < state.resources.wild.length; i++) {
+          const patch = state.resources.wild[i];
+          fillZoneCircle(patch.x, patch.y, 14, "rgba(230, 198, 113, 0.55)", "rgba(115, 90, 46, 0.9)");
+          ctx.fillStyle = "#1f2d1f";
+          ctx.font = "9px Trebuchet MS";
+          ctx.textAlign = "center";
+          ctx.fillText("wild", patch.x, patch.y + 3);
+          if (isSelectedObject(`wild:${i}`)) {
+            drawSelectionMarker(patch.x, patch.y - 20, 18);
+          }
+        }
+
+        for (let i = 0; i < state.resources.orchards.length; i++) {
+          const orchard = state.resources.orchards[i];
+          fillZoneCircle(orchard.x, orchard.y, 18, "rgba(117, 197, 111, 0.5)", "rgba(37, 98, 47, 0.9)");
+          ctx.fillStyle = "#143418";
+          ctx.font = "9px Trebuchet MS";
+          ctx.textAlign = "center";
+          ctx.fillText("orchard", orchard.x, orchard.y + 3);
+          if (isSelectedObject(`orchard:${i}`)) {
+            drawSelectionMarker(orchard.x, orchard.y - 20, 18);
+          }
+        }
+
+        for (let i = 0; i < state.resources.forests.length; i++) {
+          const f = state.resources.forests[i];
+          fillZoneCircle(f.x, f.y, 22, "rgba(56, 119, 70, 0.55)", "rgba(28, 64, 37, 0.95)");
+          ctx.fillStyle = "#e9f0dc";
+          ctx.font = "9px Trebuchet MS";
+          ctx.textAlign = "center";
+          ctx.fillText("forest", f.x, f.y + 3);
+          if (isSelectedObject(`forest:${i}`)) {
+            drawSelectionMarker(f.x, f.y - 24, 18);
+          }
+        }
+
+        if (isBuildingBuilt("market")) {
+          drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, null, isSelectedBuilding("building:market"), null);
+        }
+        if (isBuildingBuilt("farm")) {
+          drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, null, isSelectedBuilding("building:farm"), null);
+        }
+        if (isBuildingBuilt("townhall")) {
+          drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, null, isSelectedBuilding("building:townhall"), null);
+        }
+
+        drawZoneOverlays();
+        return;
+      }
 
       // Home district
       for (let i = 0; i < state.city.houses.length; i++) {
@@ -3741,11 +3880,69 @@
     }
 
     function drawPeople() {
+      function drawTaskProgress(person) {
+        const task = person.task;
+        if (!task || task.phase !== "act") {
+          return;
+        }
+        const duration = Number(task.duration);
+        const remaining = Number(task.remaining);
+        if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(remaining)) {
+          return;
+        }
+        const progress = clamp(1 - remaining / duration, 0, 1);
+        if (progress <= 0.01) {
+          return;
+        }
+        const cx = person.x;
+        const cy = person.y - 4;
+        const radius = SIMPLE_GRAPHICS ? 10 : 13;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * progress);
+        ctx.strokeStyle = "#ffe08a";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      if (SIMPLE_GRAPHICS) {
+        for (const person of state.people) {
+          const roleColor = person.role === "farmer"
+            ? "#d9bf73"
+            : (person.role === "woodcutter" ? "#7ea6d8" : "#9dd88a");
+          ctx.fillStyle = roleColor;
+          ctx.strokeStyle = "#1f1f1f";
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.arc(person.x, person.y - 4, 7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          const dir = normalizeFacing(person.facing);
+          const dx = dir === "left" ? -5 : (dir === "right" ? 5 : 0);
+          const dy = dir === "up" ? -5 : (dir === "down" ? 5 : 0);
+          ctx.beginPath();
+          ctx.moveTo(person.x, person.y - 4);
+          ctx.lineTo(person.x + dx, person.y - 4 + dy);
+          ctx.strokeStyle = "#202020";
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+          drawTaskProgress(person);
+
+          if (person.id === state.selectedId) {
+            drawSelectionMarker(person.x, person.y - 18, 16);
+            ctx.fillStyle = "#fdf7e0";
+            ctx.font = "11px Trebuchet MS";
+            ctx.textAlign = "center";
+            ctx.fillText(person.name, person.x, person.y - 10);
+          }
+        }
+        return;
+      }
       for (const person of state.people) {
         const drewSprite = drawPersonSprite(person);
         if (!drewSprite) {
           drawImageCover(sprites.iconTownhall, person.x - 14, person.y - 26, 28, 28);
         }
+        drawTaskProgress(person);
 
         if (person.id === state.selectedId) {
           drawSelectionMarker(person.x, person.y - 18, 16);
