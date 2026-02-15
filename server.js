@@ -138,6 +138,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET") {
+    if (reqUrl.pathname === "/favicon.ico") {
+      res.writeHead(204, { "Cache-Control": "public, max-age=600" });
+      res.end();
+      return;
+    }
     const filePath = resolveStaticPath(reqUrl.pathname);
     if (!filePath) {
       sendJson(res, 400, { error: "Bad path" });

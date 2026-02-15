@@ -44,56 +44,12 @@
       worldSettingsCloseBtn: document.getElementById("worldSettingsCloseBtn"),
       worldSettingsApplyBtn: document.getElementById("worldSettingsApplyBtn"),
       worldSettingsApplySaveBtn: document.getElementById("worldSettingsApplySaveBtn"),
-      wsAutosaveInput: document.getElementById("wsAutosaveInput"),
-      wsLifeSpanDaysInput: document.getElementById("wsLifeSpanDaysInput"),
-      wsNeedHungerBaseInput: document.getElementById("wsNeedHungerBaseInput"),
-      wsNeedHungerWorkInput: document.getElementById("wsNeedHungerWorkInput"),
-      wsNeedHungerPenaltyInput: document.getElementById("wsNeedHungerPenaltyInput"),
-      wsNeedHealthDecayInput: document.getElementById("wsNeedHealthDecayInput"),
-      wsNeedHealthRegenInput: document.getElementById("wsNeedHealthRegenInput"),
-      wsNeedEatTriggerInput: document.getElementById("wsNeedEatTriggerInput"),
-      wsNeedEatFromInventoryInput: document.getElementById("wsNeedEatFromInventoryInput"),
-      wsNeedBuyFoodTriggerInput: document.getElementById("wsNeedBuyFoodTriggerInput"),
-      wsNeedEatExecuteInput: document.getElementById("wsNeedEatExecuteInput"),
-      wsNeedEatReliefInput: document.getElementById("wsNeedEatReliefInput"),
-      wsTradeSellRawFactorInput: document.getElementById("wsTradeSellRawFactorInput"),
-      wsTradeSellCraftFactorInput: document.getElementById("wsTradeSellCraftFactorInput"),
-      wsTradeExportBatchInput: document.getElementById("wsTradeExportBatchInput"),
-      wsTradeExportReserveInput: document.getElementById("wsTradeExportReserveInput"),
-      wsDemandFoodPerPopInput: document.getElementById("wsDemandFoodPerPopInput"),
-      wsDemandHungerFactorInput: document.getElementById("wsDemandHungerFactorInput"),
-      wsDemandLogsPerPopInput: document.getElementById("wsDemandLogsPerPopInput"),
-      wsDemandHerbsPerPopInput: document.getElementById("wsDemandHerbsPerPopInput"),
-      wsPriceRatioWeightInput: document.getElementById("wsPriceRatioWeightInput"),
-      wsPriceShortageWeightInput: document.getElementById("wsPriceShortageWeightInput"),
-      wsPriceSmoothingInput: document.getElementById("wsPriceSmoothingInput"),
-      wsJobsMaxChangeRatioInput: document.getElementById("wsJobsMaxChangeRatioInput"),
-      wsBirthBaseChanceInput: document.getElementById("wsBirthBaseChanceInput"),
-      wsBirthPerAdultBonusInput: document.getElementById("wsBirthPerAdultBonusInput"),
-      wsBirthMaxChanceInput: document.getElementById("wsBirthMaxChanceInput"),
-      wsBirthMaxPerDayInput: document.getElementById("wsBirthMaxPerDayInput"),
-      wsRoadDecayInput: document.getElementById("wsRoadDecayInput"),
-      wsRoadStepInput: document.getElementById("wsRoadStepInput"),
-      wsRoadSegmentInput: document.getElementById("wsRoadSegmentInput"),
-      wsRoadThresholdInput: document.getElementById("wsRoadThresholdInput"),
-      wsRegenForestInput: document.getElementById("wsRegenForestInput"),
-      wsRegenWildFoodInput: document.getElementById("wsRegenWildFoodInput"),
-      wsRegenWildHerbsInput: document.getElementById("wsRegenWildHerbsInput"),
-      wsRegenOrchardInput: document.getElementById("wsRegenOrchardInput"),
-      wsRegenFarmCropInput: document.getElementById("wsRegenFarmCropInput"),
-      wsRegenFarmFertilityInput: document.getElementById("wsRegenFarmFertilityInput"),
-      wsCostTownhallLogsInput: document.getElementById("wsCostTownhallLogsInput"),
-      wsCostTownhallFoodInput: document.getElementById("wsCostTownhallFoodInput"),
-      wsCostTownhallCashInput: document.getElementById("wsCostTownhallCashInput"),
-      wsCostMarketLogsInput: document.getElementById("wsCostMarketLogsInput"),
-      wsCostMarketFoodInput: document.getElementById("wsCostMarketFoodInput"),
-      wsCostMarketCashInput: document.getElementById("wsCostMarketCashInput"),
-      wsCostFarmLogsInput: document.getElementById("wsCostFarmLogsInput"),
-      wsCostFarmFoodInput: document.getElementById("wsCostFarmFoodInput"),
-      wsCostFarmCashInput: document.getElementById("wsCostFarmCashInput"),
-      wsCostHouseLogsInput: document.getElementById("wsCostHouseLogsInput"),
-      wsCostHouseFoodInput: document.getElementById("wsCostHouseFoodInput"),
-      wsCostHouseCashInput: document.getElementById("wsCostHouseCashInput"),
+      wsMechanicNeedsInput: document.getElementById("wsMechanicNeedsInput"),
+      wsMechanicTradeInput: document.getElementById("wsMechanicTradeInput"),
+      wsMechanicDynamicPricingInput: document.getElementById("wsMechanicDynamicPricingInput"),
+      wsMechanicJobRebalanceInput: document.getElementById("wsMechanicJobRebalanceInput"),
+      wsMechanicResourceRegenInput: document.getElementById("wsMechanicResourceRegenInput"),
+      wsMechanicConstructionInput: document.getElementById("wsMechanicConstructionInput"),
       sidebar: document.querySelector(".sidebar"),
       rightbar: document.querySelector(".rightbar"),
       popStat: document.getElementById("popStat"),
@@ -109,7 +65,7 @@
       eventLog: document.getElementById("eventLog")
     };
 
-    let state = createInitialState(false);
+    let state = null;
     const visualEffects = [];
     const uiState = {
       toolsOpen: false,
@@ -198,13 +154,15 @@
       },
       jobs: {
         maxChangeRatio: 0.22
-      },
-      births: {
-        baseChance: 0,
-        perAdultBonus: 0,
-        maxChance: 0,
-        maxPerDay: 0
       }
+    };
+    const MECHANICS = {
+      needs: true,
+      trade: true,
+      dynamicPricing: true,
+      jobRebalance: true,
+      resourceRegen: true,
+      construction: true
     };
     const SHEET_ANIMS = Object.freeze({
       person: {
@@ -231,6 +189,7 @@
         fps: 5
       }
     });
+    state = createInitialState(false);
 
     function normalizeFacing(v) {
       return v === "up" || v === "down" || v === "left" || v === "right" ? v : "down";
@@ -374,305 +333,61 @@
 
     function defaultWorldSettings() {
       return {
-        autosaveIntervalSec: 20,
-        gameplay: {
-          lifeSpanDays: 360,
-          needs: {
-            hungerBase: 0.82,
-            hungerWorkBonus: 0.28,
-            hungerPenaltyBonus: 0.22,
-            healthBaseDecay: 0.07,
-            healthFedRegen: 0.03,
-            eatDecisionHunger: 32,
-            eatFromInventoryHunger: 28,
-            buyFoodHunger: 55,
-            eatExecuteHunger: 18,
-            hungerReliefPerFood: 46
-          },
-          trade: {
-            sellRawFactor: 0.9,
-            sellCraftFactor: 0.96,
-            exportLogBatch: 3,
-            exportLogReserve: 2
-          },
-          marketModel: {
-            foodPerPopBase: 2.2,
-            foodHungerFactor: 1.05,
-            logsPerPop: 0.16,
-            herbsPerPop: 0.24,
-            priceRatioWeight: 0.88,
-            priceShortageWeight: 0.55,
-            priceSmoothingOldWeight: 0.55
-          },
-          jobs: {
-            maxChangeRatio: 0.22
-          },
-          births: {
-            baseChance: 0,
-            perAdultBonus: 0,
-            maxChance: 0,
-            maxPerDay: 0
-          }
-        },
-        road: {
-          decayPerHour: 0.1,
-          addPerStep: 0.42,
-          addPerSegment: 0.95,
-          drawThreshold: 0.7
-        },
-        regen: {
-          forest: 0.004,
-          wildFood: 0.012,
-          wildHerbs: 0.007,
-          orchardFood: 0.028,
-          farmCrop: 0.085,
-          farmFertility: 0.03
-        },
-        buildCosts: {
-          townhall: { logs: 14, food: 8, cash: 90 },
-          market: { logs: 12, food: 10, cash: 80 },
-          farm: { logs: 10, food: 6, cash: 65 },
-          house: { logs: 8, food: 4, cash: 45 }
+        mechanics: {
+          needs: true,
+          trade: true,
+          dynamicPricing: true,
+          jobRebalance: true,
+          resourceRegen: true,
+          construction: true
         }
       };
     }
 
     function cloneWorldSettings(settings) {
       return {
-        autosaveIntervalSec: settings.autosaveIntervalSec,
-        gameplay: {
-          lifeSpanDays: settings.gameplay.lifeSpanDays,
-          needs: { ...settings.gameplay.needs },
-          trade: { ...settings.gameplay.trade },
-          marketModel: { ...settings.gameplay.marketModel },
-          jobs: { ...settings.gameplay.jobs },
-          births: { ...settings.gameplay.births }
-        },
-        road: { ...settings.road },
-        regen: { ...settings.regen },
-        buildCosts: {
-          townhall: { ...settings.buildCosts.townhall },
-          market: { ...settings.buildCosts.market },
-          farm: { ...settings.buildCosts.farm },
-          house: { ...settings.buildCosts.house }
-        }
-      };
-    }
-
-    function sanitizeNumber(rawValue, fallback, min, max, roundToInt = false) {
-      const numeric = Number(rawValue);
-      if (!Number.isFinite(numeric)) {
-        return fallback;
-      }
-      const clamped = clamp(numeric, min, max);
-      return roundToInt ? Math.round(clamped) : clamped;
-    }
-
-    function sanitizeCostBlock(rawCost, fallbackCost) {
-      const source = rawCost && typeof rawCost === "object" ? rawCost : {};
-      return {
-        logs: sanitizeNumber(source.logs, fallbackCost.logs, 0, 999, true),
-        food: sanitizeNumber(source.food, fallbackCost.food, 0, 999, true),
-        cash: sanitizeNumber(source.cash, fallbackCost.cash, 0, 99999, true)
+        mechanics: { ...settings.mechanics }
       };
     }
 
     function sanitizeWorldSettings(rawSettings) {
       const defaults = defaultWorldSettings();
       const source = rawSettings && typeof rawSettings === "object" ? rawSettings : {};
-      const rawGameplay = source.gameplay && typeof source.gameplay === "object" ? source.gameplay : {};
-      const rawNeeds = rawGameplay.needs && typeof rawGameplay.needs === "object" ? rawGameplay.needs : {};
-      const rawTrade = rawGameplay.trade && typeof rawGameplay.trade === "object" ? rawGameplay.trade : {};
-      const rawMarketModel = rawGameplay.marketModel && typeof rawGameplay.marketModel === "object" ? rawGameplay.marketModel : {};
-      const rawJobs = rawGameplay.jobs && typeof rawGameplay.jobs === "object" ? rawGameplay.jobs : {};
-      const rawBirths = rawGameplay.births && typeof rawGameplay.births === "object" ? rawGameplay.births : {};
-      const rawRoad = source.road && typeof source.road === "object" ? source.road : {};
-      const rawRegen = source.regen && typeof source.regen === "object" ? source.regen : {};
-      const rawCosts = source.buildCosts && typeof source.buildCosts === "object" ? source.buildCosts : {};
+      const rawMechanics = source.mechanics && typeof source.mechanics === "object" ? source.mechanics : {};
       return {
-        autosaveIntervalSec: sanitizeNumber(source.autosaveIntervalSec, defaults.autosaveIntervalSec, 5, 600, true),
-        gameplay: {
-          lifeSpanDays: sanitizeNumber(rawGameplay.lifeSpanDays, defaults.gameplay.lifeSpanDays, 20, 500, true),
-          needs: {
-            hungerBase: sanitizeNumber(rawNeeds.hungerBase, defaults.gameplay.needs.hungerBase, 0.05, 5),
-            hungerWorkBonus: sanitizeNumber(rawNeeds.hungerWorkBonus, defaults.gameplay.needs.hungerWorkBonus, 0, 3),
-            hungerPenaltyBonus: sanitizeNumber(rawNeeds.hungerPenaltyBonus, defaults.gameplay.needs.hungerPenaltyBonus, 0, 3),
-            healthBaseDecay: sanitizeNumber(rawNeeds.healthBaseDecay, defaults.gameplay.needs.healthBaseDecay, 0, 2),
-            healthFedRegen: sanitizeNumber(rawNeeds.healthFedRegen, defaults.gameplay.needs.healthFedRegen, 0, 1),
-            eatDecisionHunger: sanitizeNumber(rawNeeds.eatDecisionHunger, defaults.gameplay.needs.eatDecisionHunger, 0, 100, true),
-            eatFromInventoryHunger: sanitizeNumber(rawNeeds.eatFromInventoryHunger, defaults.gameplay.needs.eatFromInventoryHunger, 0, 100, true),
-            buyFoodHunger: sanitizeNumber(rawNeeds.buyFoodHunger, defaults.gameplay.needs.buyFoodHunger, 0, 100, true),
-            eatExecuteHunger: sanitizeNumber(rawNeeds.eatExecuteHunger, defaults.gameplay.needs.eatExecuteHunger, 0, 100, true),
-            hungerReliefPerFood: sanitizeNumber(rawNeeds.hungerReliefPerFood, defaults.gameplay.needs.hungerReliefPerFood, 1, 100, true)
-          },
-          trade: {
-            sellRawFactor: sanitizeNumber(rawTrade.sellRawFactor, defaults.gameplay.trade.sellRawFactor, 0.1, 1.5),
-            sellCraftFactor: sanitizeNumber(rawTrade.sellCraftFactor, defaults.gameplay.trade.sellCraftFactor, 0.1, 1.5),
-            exportLogBatch: sanitizeNumber(rawTrade.exportLogBatch, defaults.gameplay.trade.exportLogBatch, 0, 50, true),
-            exportLogReserve: sanitizeNumber(rawTrade.exportLogReserve, defaults.gameplay.trade.exportLogReserve, 0, 100, true)
-          },
-          marketModel: {
-            foodPerPopBase: sanitizeNumber(rawMarketModel.foodPerPopBase, defaults.gameplay.marketModel.foodPerPopBase, 0.2, 8),
-            foodHungerFactor: sanitizeNumber(rawMarketModel.foodHungerFactor, defaults.gameplay.marketModel.foodHungerFactor, 0, 4),
-            logsPerPop: sanitizeNumber(rawMarketModel.logsPerPop, defaults.gameplay.marketModel.logsPerPop, 0, 3),
-            herbsPerPop: sanitizeNumber(rawMarketModel.herbsPerPop, defaults.gameplay.marketModel.herbsPerPop, 0, 3),
-            priceRatioWeight: sanitizeNumber(rawMarketModel.priceRatioWeight, defaults.gameplay.marketModel.priceRatioWeight, 0.1, 3),
-            priceShortageWeight: sanitizeNumber(rawMarketModel.priceShortageWeight, defaults.gameplay.marketModel.priceShortageWeight, 0, 3),
-            priceSmoothingOldWeight: sanitizeNumber(rawMarketModel.priceSmoothingOldWeight, defaults.gameplay.marketModel.priceSmoothingOldWeight, 0.05, 0.95)
-          },
-          jobs: {
-            maxChangeRatio: sanitizeNumber(rawJobs.maxChangeRatio, defaults.gameplay.jobs.maxChangeRatio, 0.02, 1)
-          },
-          births: {
-            baseChance: sanitizeNumber(rawBirths.baseChance, defaults.gameplay.births.baseChance, 0, 1),
-            perAdultBonus: sanitizeNumber(rawBirths.perAdultBonus, defaults.gameplay.births.perAdultBonus, 0, 0.2),
-            maxChance: sanitizeNumber(rawBirths.maxChance, defaults.gameplay.births.maxChance, 0, 1),
-            maxPerDay: sanitizeNumber(rawBirths.maxPerDay, defaults.gameplay.births.maxPerDay, 0, 10, true)
-          }
-        },
-        road: {
-          decayPerHour: sanitizeNumber(rawRoad.decayPerHour, defaults.road.decayPerHour, 0.001, 2),
-          addPerStep: sanitizeNumber(rawRoad.addPerStep, defaults.road.addPerStep, 0.05, 5),
-          addPerSegment: sanitizeNumber(rawRoad.addPerSegment, defaults.road.addPerSegment, 0.1, 8),
-          drawThreshold: sanitizeNumber(rawRoad.drawThreshold, defaults.road.drawThreshold, 0.1, 10)
-        },
-        regen: {
-          forest: sanitizeNumber(rawRegen.forest, defaults.regen.forest, 0, 1),
-          wildFood: sanitizeNumber(rawRegen.wildFood, defaults.regen.wildFood, 0, 1),
-          wildHerbs: sanitizeNumber(rawRegen.wildHerbs, defaults.regen.wildHerbs, 0, 1),
-          orchardFood: sanitizeNumber(rawRegen.orchardFood, defaults.regen.orchardFood, 0, 1),
-          farmCrop: sanitizeNumber(rawRegen.farmCrop, defaults.regen.farmCrop, 0, 1),
-          farmFertility: sanitizeNumber(rawRegen.farmFertility, defaults.regen.farmFertility, 0, 1)
-        },
-        buildCosts: {
-          townhall: sanitizeCostBlock(rawCosts.townhall, defaults.buildCosts.townhall),
-          market: sanitizeCostBlock(rawCosts.market, defaults.buildCosts.market),
-          farm: sanitizeCostBlock(rawCosts.farm, defaults.buildCosts.farm),
-          house: sanitizeCostBlock(rawCosts.house, defaults.buildCosts.house)
+        mechanics: {
+          needs: rawMechanics.needs === undefined ? defaults.mechanics.needs : Boolean(rawMechanics.needs),
+          trade: rawMechanics.trade === undefined ? defaults.mechanics.trade : Boolean(rawMechanics.trade),
+          dynamicPricing: rawMechanics.dynamicPricing === undefined ? defaults.mechanics.dynamicPricing : Boolean(rawMechanics.dynamicPricing),
+          jobRebalance: rawMechanics.jobRebalance === undefined ? defaults.mechanics.jobRebalance : Boolean(rawMechanics.jobRebalance),
+          resourceRegen: rawMechanics.resourceRegen === undefined ? defaults.mechanics.resourceRegen : Boolean(rawMechanics.resourceRegen),
+          construction: rawMechanics.construction === undefined ? defaults.mechanics.construction : Boolean(rawMechanics.construction)
         }
       };
     }
 
     function applyWorldSettings(rawSettings) {
       const next = sanitizeWorldSettings(rawSettings);
-      autosaveIntervalSec = next.autosaveIntervalSec;
-      LIFE_SPAN_DAYS = next.gameplay.lifeSpanDays;
-      GAMEPLAY.needs.hungerBase = next.gameplay.needs.hungerBase;
-      GAMEPLAY.needs.hungerWorkBonus = next.gameplay.needs.hungerWorkBonus;
-      GAMEPLAY.needs.hungerPenaltyBonus = next.gameplay.needs.hungerPenaltyBonus;
-      GAMEPLAY.needs.healthBaseDecay = next.gameplay.needs.healthBaseDecay;
-      GAMEPLAY.needs.healthFedRegen = next.gameplay.needs.healthFedRegen;
-      GAMEPLAY.needs.eatDecisionHunger = next.gameplay.needs.eatDecisionHunger;
-      GAMEPLAY.needs.eatFromInventoryHunger = next.gameplay.needs.eatFromInventoryHunger;
-      GAMEPLAY.needs.buyFoodHunger = next.gameplay.needs.buyFoodHunger;
-      GAMEPLAY.needs.eatExecuteHunger = next.gameplay.needs.eatExecuteHunger;
-      GAMEPLAY.needs.hungerReliefPerFood = next.gameplay.needs.hungerReliefPerFood;
-
-      GAMEPLAY.trade.sellRawFactor = next.gameplay.trade.sellRawFactor;
-      GAMEPLAY.trade.sellCraftFactor = next.gameplay.trade.sellCraftFactor;
-      GAMEPLAY.trade.exportLogBatch = next.gameplay.trade.exportLogBatch;
-      GAMEPLAY.trade.exportLogReserve = next.gameplay.trade.exportLogReserve;
-
-      GAMEPLAY.marketModel.foodPerPopBase = next.gameplay.marketModel.foodPerPopBase;
-      GAMEPLAY.marketModel.foodHungerFactor = next.gameplay.marketModel.foodHungerFactor;
-      GAMEPLAY.marketModel.logsPerPop = next.gameplay.marketModel.logsPerPop;
-      GAMEPLAY.marketModel.herbsPerPop = next.gameplay.marketModel.herbsPerPop;
-      GAMEPLAY.marketModel.priceRatioWeight = next.gameplay.marketModel.priceRatioWeight;
-      GAMEPLAY.marketModel.priceShortageWeight = next.gameplay.marketModel.priceShortageWeight;
-      GAMEPLAY.marketModel.priceSmoothingOldWeight = next.gameplay.marketModel.priceSmoothingOldWeight;
-
-      GAMEPLAY.jobs.maxChangeRatio = next.gameplay.jobs.maxChangeRatio;
-
-      GAMEPLAY.births.baseChance = next.gameplay.births.baseChance;
-      GAMEPLAY.births.perAdultBonus = next.gameplay.births.perAdultBonus;
-      GAMEPLAY.births.maxChance = next.gameplay.births.maxChance;
-      GAMEPLAY.births.maxPerDay = next.gameplay.births.maxPerDay;
-
-      ROAD.decayPerHour = next.road.decayPerHour;
-      ROAD.addPerStep = next.road.addPerStep;
-      ROAD.addPerSegment = next.road.addPerSegment;
-      ROAD.drawThreshold = next.road.drawThreshold;
-
-      REGEN.forest = next.regen.forest;
-      REGEN.wildFood = next.regen.wildFood;
-      REGEN.wildHerbs = next.regen.wildHerbs;
-      REGEN.orchardFood = next.regen.orchardFood;
-      REGEN.farmCrop = next.regen.farmCrop;
-      REGEN.farmFertility = next.regen.farmFertility;
-
-      BUILD_COSTS.townhall = { ...next.buildCosts.townhall };
-      BUILD_COSTS.market = { ...next.buildCosts.market };
-      BUILD_COSTS.farm = { ...next.buildCosts.farm };
-      BUILD_COSTS.house = { ...next.buildCosts.house };
+      MECHANICS.needs = next.mechanics.needs;
+      MECHANICS.trade = next.mechanics.trade;
+      MECHANICS.dynamicPricing = next.mechanics.dynamicPricing;
+      MECHANICS.jobRebalance = next.mechanics.jobRebalance;
+      MECHANICS.resourceRegen = next.mechanics.resourceRegen;
+      MECHANICS.construction = next.mechanics.construction;
 
       state.worldSettings = cloneWorldSettings(next);
-      if (autosaveTimer > autosaveIntervalSec) {
-        autosaveTimer = 0;
-      }
       return next;
     }
 
     function runtimeWorldSettings() {
       return {
-        autosaveIntervalSec,
-        gameplay: {
-          lifeSpanDays: LIFE_SPAN_DAYS,
-          needs: {
-            hungerBase: GAMEPLAY.needs.hungerBase,
-            hungerWorkBonus: GAMEPLAY.needs.hungerWorkBonus,
-            hungerPenaltyBonus: GAMEPLAY.needs.hungerPenaltyBonus,
-            healthBaseDecay: GAMEPLAY.needs.healthBaseDecay,
-            healthFedRegen: GAMEPLAY.needs.healthFedRegen,
-            eatDecisionHunger: GAMEPLAY.needs.eatDecisionHunger,
-            eatFromInventoryHunger: GAMEPLAY.needs.eatFromInventoryHunger,
-            buyFoodHunger: GAMEPLAY.needs.buyFoodHunger,
-            eatExecuteHunger: GAMEPLAY.needs.eatExecuteHunger,
-            hungerReliefPerFood: GAMEPLAY.needs.hungerReliefPerFood
-          },
-          trade: {
-            sellRawFactor: GAMEPLAY.trade.sellRawFactor,
-            sellCraftFactor: GAMEPLAY.trade.sellCraftFactor,
-            exportLogBatch: GAMEPLAY.trade.exportLogBatch,
-            exportLogReserve: GAMEPLAY.trade.exportLogReserve
-          },
-          marketModel: {
-            foodPerPopBase: GAMEPLAY.marketModel.foodPerPopBase,
-            foodHungerFactor: GAMEPLAY.marketModel.foodHungerFactor,
-            logsPerPop: GAMEPLAY.marketModel.logsPerPop,
-            herbsPerPop: GAMEPLAY.marketModel.herbsPerPop,
-            priceRatioWeight: GAMEPLAY.marketModel.priceRatioWeight,
-            priceShortageWeight: GAMEPLAY.marketModel.priceShortageWeight,
-            priceSmoothingOldWeight: GAMEPLAY.marketModel.priceSmoothingOldWeight
-          },
-          jobs: {
-            maxChangeRatio: GAMEPLAY.jobs.maxChangeRatio
-          },
-          births: {
-            baseChance: GAMEPLAY.births.baseChance,
-            perAdultBonus: GAMEPLAY.births.perAdultBonus,
-            maxChance: GAMEPLAY.births.maxChance,
-            maxPerDay: GAMEPLAY.births.maxPerDay
-          }
-        },
-        road: {
-          decayPerHour: ROAD.decayPerHour,
-          addPerStep: ROAD.addPerStep,
-          addPerSegment: ROAD.addPerSegment,
-          drawThreshold: ROAD.drawThreshold
-        },
-        regen: {
-          forest: REGEN.forest,
-          wildFood: REGEN.wildFood,
-          wildHerbs: REGEN.wildHerbs,
-          orchardFood: REGEN.orchardFood,
-          farmCrop: REGEN.farmCrop,
-          farmFertility: REGEN.farmFertility
-        },
-        buildCosts: {
-          townhall: { ...BUILD_COSTS.townhall },
-          market: { ...BUILD_COSTS.market },
-          farm: { ...BUILD_COSTS.farm },
-          house: { ...BUILD_COSTS.house }
+        mechanics: {
+          needs: MECHANICS.needs,
+          trade: MECHANICS.trade,
+          dynamicPricing: MECHANICS.dynamicPricing,
+          jobRebalance: MECHANICS.jobRebalance,
+          resourceRegen: MECHANICS.resourceRegen,
+          construction: MECHANICS.construction
         }
       };
     }
@@ -824,6 +539,46 @@
       challenge.bestMoney = Math.max(Number(challenge.bestMoney) || 0, current);
     }
 
+    function buildChallengeResults() {
+      const livingHeroes = state.people
+        .filter((p) => p.isHero)
+        .map((p) => ({
+          name: p.name,
+          careerEarnings: Math.max(0, Math.round(Number(p.careerEarnings) || 0)),
+          money: Math.max(0, Math.round(Number(p.money) || 0)),
+          alive: true,
+          reason: ""
+        }));
+      const fallenHeroes = state.graves
+        .filter((g) => g && g.isHero)
+        .map((g) => ({
+          name: String(g.name || "Unknown hero"),
+          careerEarnings: Math.max(0, Math.round(Number(g.careerEarnings) || 0)),
+          money: Math.max(0, Math.round(Number(g.moneyAtDeath) || 0)),
+          alive: false,
+          reason: String(g.reason || "unknown")
+        }));
+      const all = [...livingHeroes, ...fallenHeroes];
+      all.sort((a, b) => {
+        if (b.careerEarnings !== a.careerEarnings) {
+          return b.careerEarnings - a.careerEarnings;
+        }
+        return b.money - a.money;
+      });
+      return all.slice(0, HERO_TARGET_COUNT);
+    }
+
+    function ensureChallengeResults() {
+      const challenge = moneyChallengeState();
+      if (!challenge.finished) {
+        return;
+      }
+      if (!Array.isArray(challenge.results) || challenge.results.length === 0) {
+        challenge.results = buildChallengeResults();
+      }
+      challenge.winner = challenge.results.length > 0 ? challenge.results[0] : null;
+    }
+
     function completeMoneyChallenge() {
       const challenge = moneyChallengeState();
       if (challenge.finished) {
@@ -834,8 +589,17 @@
       challenge.finishedDay = Math.max(1, Math.floor(state.day));
       challenge.finalMoney = Math.round(totalMoneyScore());
       challenge.bestMoney = Math.max(Number(challenge.bestMoney) || 0, challenge.finalMoney);
+      challenge.results = buildChallengeResults();
+      challenge.winner = challenge.results.length > 0 ? challenge.results[0] : null;
       state.paused = true;
       addEvent(`5-year challenge complete. Final money: $${challenge.finalMoney}. Peak money: $${challenge.bestMoney}.`);
+      if (challenge.winner) {
+        addEvent(`Winner: ${challenge.winner.name} with $${challenge.winner.careerEarnings} earned.`);
+      }
+      for (let i = 0; i < challenge.results.length; i++) {
+        const row = challenge.results[i];
+        addEvent(`#${i + 1} ${row.name}: earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}.`);
+      }
       syncUiToggles();
     }
 
@@ -945,6 +709,11 @@
         },
         switchPenaltyHours: Number.isFinite(p.switchPenaltyHours) ? Math.max(0, p.switchPenaltyHours) : 0,
         facing: normalizeFacing(p.facing),
+        isHero: Boolean(p.isHero),
+        heroSlot: Number.isFinite(p.heroSlot) ? Math.max(1, Math.floor(p.heroSlot)) : null,
+        careerEarnings: Math.max(0, Math.round(Number(p.careerEarnings) || 0)),
+        ignoredNeedsHours: Math.max(0, Number(p.ignoredNeedsHours) || 0),
+        needsWarningCooldown: Math.max(0, Number(p.needsWarningCooldown) || 0),
         ageDays: Number.isFinite(p.ageDays)
           ? Math.max(0, p.ageDays)
           : (Number.isFinite(p.age)
@@ -1005,7 +774,9 @@
         finished: Boolean(incomingChallenge.finished),
         finishedDay: Number.isFinite(incomingChallenge.finishedDay) ? Math.max(1, Math.floor(incomingChallenge.finishedDay)) : null,
         finalMoney: Math.max(0, Math.round(Number(incomingChallenge.finalMoney) || 0)),
-        bestMoney: Math.max(0, Math.round(Number(incomingChallenge.bestMoney) || 0))
+        bestMoney: Math.max(0, Math.round(Number(incomingChallenge.bestMoney) || 0)),
+        results: Array.isArray(incomingChallenge.results) ? incomingChallenge.results : [],
+        winner: incomingChallenge.winner && typeof incomingChallenge.winner === "object" ? incomingChallenge.winner : null
       };
       applyWorldSettings(incoming.worldSettings || state.worldSettings);
       normalizeObjectTextureSpacing();
@@ -1014,6 +785,7 @@
       updateMoneyChallengeProgress();
       if (state.challenge.finished) {
         state.paused = true;
+        ensureChallengeResults();
       }
       syncUiToggles();
     }
@@ -1058,158 +830,30 @@
       return tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || target.isContentEditable === true;
     }
 
-    function formatForInput(value, digits = 3) {
-      if (Number.isInteger(value)) {
-        return String(value);
-      }
-      return String(Number(value.toFixed(digits)));
-    }
-
     function readWorldSettingsFromForm() {
       return {
-        autosaveIntervalSec: ui.wsAutosaveInput ? ui.wsAutosaveInput.value : undefined,
-        gameplay: {
-          lifeSpanDays: ui.wsLifeSpanDaysInput ? ui.wsLifeSpanDaysInput.value : undefined,
-          needs: {
-            hungerBase: ui.wsNeedHungerBaseInput ? ui.wsNeedHungerBaseInput.value : undefined,
-            hungerWorkBonus: ui.wsNeedHungerWorkInput ? ui.wsNeedHungerWorkInput.value : undefined,
-            hungerPenaltyBonus: ui.wsNeedHungerPenaltyInput ? ui.wsNeedHungerPenaltyInput.value : undefined,
-            healthBaseDecay: ui.wsNeedHealthDecayInput ? ui.wsNeedHealthDecayInput.value : undefined,
-            healthFedRegen: ui.wsNeedHealthRegenInput ? ui.wsNeedHealthRegenInput.value : undefined,
-            eatDecisionHunger: ui.wsNeedEatTriggerInput ? ui.wsNeedEatTriggerInput.value : undefined,
-            eatFromInventoryHunger: ui.wsNeedEatFromInventoryInput ? ui.wsNeedEatFromInventoryInput.value : undefined,
-            buyFoodHunger: ui.wsNeedBuyFoodTriggerInput ? ui.wsNeedBuyFoodTriggerInput.value : undefined,
-            eatExecuteHunger: ui.wsNeedEatExecuteInput ? ui.wsNeedEatExecuteInput.value : undefined,
-            hungerReliefPerFood: ui.wsNeedEatReliefInput ? ui.wsNeedEatReliefInput.value : undefined
-          },
-          trade: {
-            sellRawFactor: ui.wsTradeSellRawFactorInput ? ui.wsTradeSellRawFactorInput.value : undefined,
-            sellCraftFactor: ui.wsTradeSellCraftFactorInput ? ui.wsTradeSellCraftFactorInput.value : undefined,
-            exportLogBatch: ui.wsTradeExportBatchInput ? ui.wsTradeExportBatchInput.value : undefined,
-            exportLogReserve: ui.wsTradeExportReserveInput ? ui.wsTradeExportReserveInput.value : undefined
-          },
-          marketModel: {
-            foodPerPopBase: ui.wsDemandFoodPerPopInput ? ui.wsDemandFoodPerPopInput.value : undefined,
-            foodHungerFactor: ui.wsDemandHungerFactorInput ? ui.wsDemandHungerFactorInput.value : undefined,
-            logsPerPop: ui.wsDemandLogsPerPopInput ? ui.wsDemandLogsPerPopInput.value : undefined,
-            herbsPerPop: ui.wsDemandHerbsPerPopInput ? ui.wsDemandHerbsPerPopInput.value : undefined,
-            priceRatioWeight: ui.wsPriceRatioWeightInput ? ui.wsPriceRatioWeightInput.value : undefined,
-            priceShortageWeight: ui.wsPriceShortageWeightInput ? ui.wsPriceShortageWeightInput.value : undefined,
-            priceSmoothingOldWeight: ui.wsPriceSmoothingInput ? ui.wsPriceSmoothingInput.value : undefined
-          },
-          jobs: {
-            maxChangeRatio: ui.wsJobsMaxChangeRatioInput ? ui.wsJobsMaxChangeRatioInput.value : undefined
-          },
-          births: {
-            baseChance: ui.wsBirthBaseChanceInput ? ui.wsBirthBaseChanceInput.value : undefined,
-            perAdultBonus: ui.wsBirthPerAdultBonusInput ? ui.wsBirthPerAdultBonusInput.value : undefined,
-            maxChance: ui.wsBirthMaxChanceInput ? ui.wsBirthMaxChanceInput.value : undefined,
-            maxPerDay: ui.wsBirthMaxPerDayInput ? ui.wsBirthMaxPerDayInput.value : undefined
-          }
-        },
-        road: {
-          decayPerHour: ui.wsRoadDecayInput ? ui.wsRoadDecayInput.value : undefined,
-          addPerStep: ui.wsRoadStepInput ? ui.wsRoadStepInput.value : undefined,
-          addPerSegment: ui.wsRoadSegmentInput ? ui.wsRoadSegmentInput.value : undefined,
-          drawThreshold: ui.wsRoadThresholdInput ? ui.wsRoadThresholdInput.value : undefined
-        },
-        regen: {
-          forest: ui.wsRegenForestInput ? ui.wsRegenForestInput.value : undefined,
-          wildFood: ui.wsRegenWildFoodInput ? ui.wsRegenWildFoodInput.value : undefined,
-          wildHerbs: ui.wsRegenWildHerbsInput ? ui.wsRegenWildHerbsInput.value : undefined,
-          orchardFood: ui.wsRegenOrchardInput ? ui.wsRegenOrchardInput.value : undefined,
-          farmCrop: ui.wsRegenFarmCropInput ? ui.wsRegenFarmCropInput.value : undefined,
-          farmFertility: ui.wsRegenFarmFertilityInput ? ui.wsRegenFarmFertilityInput.value : undefined
-        },
-        buildCosts: {
-          townhall: {
-            logs: ui.wsCostTownhallLogsInput ? ui.wsCostTownhallLogsInput.value : undefined,
-            food: ui.wsCostTownhallFoodInput ? ui.wsCostTownhallFoodInput.value : undefined,
-            cash: ui.wsCostTownhallCashInput ? ui.wsCostTownhallCashInput.value : undefined
-          },
-          market: {
-            logs: ui.wsCostMarketLogsInput ? ui.wsCostMarketLogsInput.value : undefined,
-            food: ui.wsCostMarketFoodInput ? ui.wsCostMarketFoodInput.value : undefined,
-            cash: ui.wsCostMarketCashInput ? ui.wsCostMarketCashInput.value : undefined
-          },
-          farm: {
-            logs: ui.wsCostFarmLogsInput ? ui.wsCostFarmLogsInput.value : undefined,
-            food: ui.wsCostFarmFoodInput ? ui.wsCostFarmFoodInput.value : undefined,
-            cash: ui.wsCostFarmCashInput ? ui.wsCostFarmCashInput.value : undefined
-          },
-          house: {
-            logs: ui.wsCostHouseLogsInput ? ui.wsCostHouseLogsInput.value : undefined,
-            food: ui.wsCostHouseFoodInput ? ui.wsCostHouseFoodInput.value : undefined,
-            cash: ui.wsCostHouseCashInput ? ui.wsCostHouseCashInput.value : undefined
-          }
+        mechanics: {
+          needs: ui.wsMechanicNeedsInput ? ui.wsMechanicNeedsInput.checked : undefined,
+          trade: ui.wsMechanicTradeInput ? ui.wsMechanicTradeInput.checked : undefined,
+          dynamicPricing: ui.wsMechanicDynamicPricingInput ? ui.wsMechanicDynamicPricingInput.checked : undefined,
+          jobRebalance: ui.wsMechanicJobRebalanceInput ? ui.wsMechanicJobRebalanceInput.checked : undefined,
+          resourceRegen: ui.wsMechanicResourceRegenInput ? ui.wsMechanicResourceRegenInput.checked : undefined,
+          construction: ui.wsMechanicConstructionInput ? ui.wsMechanicConstructionInput.checked : undefined
         }
       };
     }
 
     function fillWorldSettingsForm() {
-      if (!ui.wsAutosaveInput) {
+      if (!ui.wsMechanicNeedsInput) {
         return;
       }
       const settings = sanitizeWorldSettings(runtimeWorldSettings());
-      ui.wsAutosaveInput.value = formatForInput(settings.autosaveIntervalSec, 0);
-      ui.wsLifeSpanDaysInput.value = formatForInput(settings.gameplay.lifeSpanDays, 0);
-
-      ui.wsNeedHungerBaseInput.value = formatForInput(settings.gameplay.needs.hungerBase);
-      ui.wsNeedHungerWorkInput.value = formatForInput(settings.gameplay.needs.hungerWorkBonus);
-      ui.wsNeedHungerPenaltyInput.value = formatForInput(settings.gameplay.needs.hungerPenaltyBonus);
-      ui.wsNeedHealthDecayInput.value = formatForInput(settings.gameplay.needs.healthBaseDecay);
-      ui.wsNeedHealthRegenInput.value = formatForInput(settings.gameplay.needs.healthFedRegen);
-      ui.wsNeedEatTriggerInput.value = formatForInput(settings.gameplay.needs.eatDecisionHunger, 0);
-      ui.wsNeedEatFromInventoryInput.value = formatForInput(settings.gameplay.needs.eatFromInventoryHunger, 0);
-      ui.wsNeedBuyFoodTriggerInput.value = formatForInput(settings.gameplay.needs.buyFoodHunger, 0);
-      ui.wsNeedEatExecuteInput.value = formatForInput(settings.gameplay.needs.eatExecuteHunger, 0);
-      ui.wsNeedEatReliefInput.value = formatForInput(settings.gameplay.needs.hungerReliefPerFood, 0);
-
-      ui.wsTradeSellRawFactorInput.value = formatForInput(settings.gameplay.trade.sellRawFactor);
-      ui.wsTradeSellCraftFactorInput.value = formatForInput(settings.gameplay.trade.sellCraftFactor);
-      ui.wsTradeExportBatchInput.value = formatForInput(settings.gameplay.trade.exportLogBatch, 0);
-      ui.wsTradeExportReserveInput.value = formatForInput(settings.gameplay.trade.exportLogReserve, 0);
-
-      ui.wsDemandFoodPerPopInput.value = formatForInput(settings.gameplay.marketModel.foodPerPopBase);
-      ui.wsDemandHungerFactorInput.value = formatForInput(settings.gameplay.marketModel.foodHungerFactor);
-      ui.wsDemandLogsPerPopInput.value = formatForInput(settings.gameplay.marketModel.logsPerPop);
-      ui.wsDemandHerbsPerPopInput.value = formatForInput(settings.gameplay.marketModel.herbsPerPop);
-      ui.wsPriceRatioWeightInput.value = formatForInput(settings.gameplay.marketModel.priceRatioWeight);
-      ui.wsPriceShortageWeightInput.value = formatForInput(settings.gameplay.marketModel.priceShortageWeight);
-      ui.wsPriceSmoothingInput.value = formatForInput(settings.gameplay.marketModel.priceSmoothingOldWeight);
-
-      ui.wsJobsMaxChangeRatioInput.value = formatForInput(settings.gameplay.jobs.maxChangeRatio);
-      ui.wsBirthBaseChanceInput.value = formatForInput(settings.gameplay.births.baseChance);
-      ui.wsBirthPerAdultBonusInput.value = formatForInput(settings.gameplay.births.perAdultBonus);
-      ui.wsBirthMaxChanceInput.value = formatForInput(settings.gameplay.births.maxChance);
-      ui.wsBirthMaxPerDayInput.value = formatForInput(settings.gameplay.births.maxPerDay, 0);
-      ui.wsRoadDecayInput.value = formatForInput(settings.road.decayPerHour);
-      ui.wsRoadStepInput.value = formatForInput(settings.road.addPerStep);
-      ui.wsRoadSegmentInput.value = formatForInput(settings.road.addPerSegment);
-      ui.wsRoadThresholdInput.value = formatForInput(settings.road.drawThreshold);
-
-      ui.wsRegenForestInput.value = formatForInput(settings.regen.forest);
-      ui.wsRegenWildFoodInput.value = formatForInput(settings.regen.wildFood);
-      ui.wsRegenWildHerbsInput.value = formatForInput(settings.regen.wildHerbs);
-      ui.wsRegenOrchardInput.value = formatForInput(settings.regen.orchardFood);
-      ui.wsRegenFarmCropInput.value = formatForInput(settings.regen.farmCrop);
-      ui.wsRegenFarmFertilityInput.value = formatForInput(settings.regen.farmFertility);
-
-      ui.wsCostTownhallLogsInput.value = formatForInput(settings.buildCosts.townhall.logs, 0);
-      ui.wsCostTownhallFoodInput.value = formatForInput(settings.buildCosts.townhall.food, 0);
-      ui.wsCostTownhallCashInput.value = formatForInput(settings.buildCosts.townhall.cash, 0);
-
-      ui.wsCostMarketLogsInput.value = formatForInput(settings.buildCosts.market.logs, 0);
-      ui.wsCostMarketFoodInput.value = formatForInput(settings.buildCosts.market.food, 0);
-      ui.wsCostMarketCashInput.value = formatForInput(settings.buildCosts.market.cash, 0);
-
-      ui.wsCostFarmLogsInput.value = formatForInput(settings.buildCosts.farm.logs, 0);
-      ui.wsCostFarmFoodInput.value = formatForInput(settings.buildCosts.farm.food, 0);
-      ui.wsCostFarmCashInput.value = formatForInput(settings.buildCosts.farm.cash, 0);
-
-      ui.wsCostHouseLogsInput.value = formatForInput(settings.buildCosts.house.logs, 0);
-      ui.wsCostHouseFoodInput.value = formatForInput(settings.buildCosts.house.food, 0);
-      ui.wsCostHouseCashInput.value = formatForInput(settings.buildCosts.house.cash, 0);
+      ui.wsMechanicNeedsInput.checked = settings.mechanics.needs;
+      ui.wsMechanicTradeInput.checked = settings.mechanics.trade;
+      ui.wsMechanicDynamicPricingInput.checked = settings.mechanics.dynamicPricing;
+      ui.wsMechanicJobRebalanceInput.checked = settings.mechanics.jobRebalance;
+      ui.wsMechanicResourceRegenInput.checked = settings.mechanics.resourceRegen;
+      ui.wsMechanicConstructionInput.checked = settings.mechanics.construction;
     }
 
     function setWorldSettingsModalOpen(open) {
@@ -1335,29 +979,33 @@
       const hub = BUILDINGS.townhall || { x: WORLD.width * 0.5 - 40, y: WORLD.height * 0.5 - 30, w: 80, h: 60 };
       const x = home ? home.x + rand(8, home.w - 8) : (hub.x + hub.w * 0.5 + rand(-65, 65));
       const y = home ? home.y + rand(8, home.h - 8) : (hub.y + hub.h * 0.5 + rand(-65, 65));
-      const isBirth = opts.isBirth === true;
       const person = {
         id,
-        name: isBirth ? `Newborn ${pick(NAMES)} #${id}` : `${pick(NAMES)} #${id}`,
+        name: `${pick(NAMES)} #${id}`,
         x,
         y,
         targetX: x,
         targetY: y,
         speed: rand(110, 145),
-        ageDays: isBirth ? 0 : rand(18, 70),
-        health: isBirth ? rand(82, 100) : rand(72, 100),
-        hunger: isBirth ? rand(8, 22) : rand(18, 48),
-        money: isBirth ? 0 : rand(16, 42),
+        ageDays: rand(18, 70),
+        health: rand(72, 100),
+        hunger: rand(18, 48),
+        money: rand(16, 42),
         role: profession,
         baseProfession: profession,
         experience: createExperienceProfile(profession),
         switchPenaltyHours: 0,
         facing: "down",
+        isHero: Boolean(opts.isHero),
+        heroSlot: Number.isFinite(opts.heroSlot) ? Math.max(1, Math.floor(opts.heroSlot)) : null,
+        careerEarnings: 0,
+        ignoredNeedsHours: 0,
+        needsWarningCooldown: 0,
         homeIndex,
         alive: true,
         task: null,
         inventory: {
-          food: isBirth ? 0 : (Math.random() < 0.45 ? 1 : 0),
+          food: Math.random() < 0.45 ? 1 : 0,
           logs: 0,
           herbs: 0
         }
@@ -1383,12 +1031,21 @@
     function diePerson(person, reason) {
       person.alive = false;
       const transfer = Math.max(0, Math.round(Number(person.money) || 0));
+      const moneyAtDeath = transfer;
       if (transfer > 0) {
         state.bank.treasury += transfer;
         person.money = 0;
       }
       addVisualEffect("death", person.x, person.y - 10, 1.9);
-      state.graves.push({ name: person.name, ageDays: person.ageDays, reason });
+      state.graves.push({
+        name: person.name,
+        ageDays: person.ageDays,
+        reason,
+        isHero: Boolean(person.isHero),
+        heroSlot: Number.isFinite(person.heroSlot) ? person.heroSlot : null,
+        moneyAtDeath,
+        careerEarnings: Math.max(0, Math.round(Number(person.careerEarnings) || 0))
+      });
       removePersonById(person.id, reason);
       if (transfer > 0) {
         addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}). $${transfer} transferred to bank.`);
@@ -1399,7 +1056,7 @@
 
     function initPopulation(count) {
       for (let i = 0; i < count; i++) {
-        const p = createPerson();
+        const p = createPerson({ isHero: true, heroSlot: i + 1 });
         if (i === 0) {
           state.selectedId = p.id;
         }
@@ -1419,7 +1076,7 @@
           addEvent(`Hero limit reached (${HERO_TARGET_COUNT}/${HERO_TARGET_COUNT}).`);
           return;
         }
-        const p = createPerson();
+        const p = createPerson({ isHero: true, heroSlot: state.people.length + 1 });
         state.selectedId = p.id;
         state.selectedBuilding = null;
         state.selectedObject = null;
@@ -2383,8 +2040,8 @@
       const criticalHunger = person.hunger > 70;
       const criticalNeeds = criticalHunger || criticalHealth;
       const marketOpen = isBuildingBuilt("market");
-      const canBuyFood = marketOpen && state.market.stocks.food > 0 && person.money >= state.market.prices.food;
-      const canBuyHerbs = marketOpen && state.market.stocks.herbs > 0 && person.money >= state.market.prices.herbs;
+      const canBuyFood = MECHANICS.trade && marketOpen && state.market.stocks.food > 0 && person.money >= state.market.prices.food;
+      const canBuyHerbs = MECHANICS.trade && marketOpen && state.market.stocks.herbs > 0 && person.money >= state.market.prices.herbs;
 
       function foodPriorityTask() {
         if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
@@ -2445,7 +2102,7 @@
         }
       }
 
-      if (sellableUnits(person) > 0) {
+      if (MECHANICS.trade && sellableUnits(person) > 0) {
         return createTask("sell_goods", buildingTarget("market", 18, 8), 0.7);
       }
       return pickWorkTask(person);
@@ -2464,6 +2121,9 @@
       }
 
       if (task.type === "buy_food") {
+        if (!MECHANICS.trade) {
+          return;
+        }
         if (market.stocks.food > 0 && person.money >= market.prices.food) {
           market.stocks.food -= 1;
           person.money -= market.prices.food;
@@ -2482,6 +2142,9 @@
       }
 
       if (task.type === "buy_herbs") {
+        if (!MECHANICS.trade) {
+          return;
+        }
         if (market.stocks.herbs > 0 && person.money >= market.prices.herbs) {
           market.stocks.herbs -= 1;
           person.money -= market.prices.herbs;
@@ -2492,6 +2155,9 @@
       }
 
       if (task.type === "sell_goods") {
+        if (!MECHANICS.trade) {
+          return;
+        }
         for (const good of GOODS) {
           let reserve = 0;
           if (good === "food" && person.hunger > 30) {
@@ -2512,7 +2178,9 @@
           }
           person.inventory[good] -= sold;
           market.stocks[good] += sold;
-          person.money += sold * unit;
+          const income = sold * unit;
+          person.money += income;
+          person.careerEarnings = Math.max(0, Math.round(Number(person.careerEarnings) || 0)) + income;
         }
         return;
       }
@@ -2582,6 +2250,9 @@
 
     function updatePersonNeeds(person, dtHours) {
       person.ageDays += dtHours / 24;
+      if (!MECHANICS.needs) {
+        return;
+      }
 
       const workLoad = person.task && person.task.type !== "idle" ? 1 : 0;
       person.hunger = clamp(person.hunger + dtHours * (GAMEPLAY.needs.hungerBase + workLoad * GAMEPLAY.needs.hungerWorkBonus), 0, 100);
@@ -2611,6 +2282,32 @@
 
       if (person.hunger <= 24 && person.health < 95) {
         person.health = clamp(person.health + dtHours * GAMEPLAY.needs.healthFedRegen, 0, 100);
+      }
+
+      person.needsWarningCooldown = Math.max(0, (Number(person.needsWarningCooldown) || 0) - dtHours);
+      const urgentNeeds = person.hunger >= 78 || person.health <= 34;
+      const safeTasks = new Set([
+        "eat_food",
+        "buy_food",
+        "gather_food",
+        "gather_orchard_food",
+        "use_herbs",
+        "buy_herbs",
+        "gather_herbs",
+        "idle"
+      ]);
+      const taskType = person.task ? person.task.type : "idle";
+      const ignoringNeeds = urgentNeeds && !safeTasks.has(taskType);
+      if (ignoringNeeds) {
+        person.ignoredNeedsHours = Math.min(72, (Number(person.ignoredNeedsHours) || 0) + dtHours);
+        const extraRisk = dtHours * (0.7 + person.ignoredNeedsHours * 0.05);
+        person.health = clamp(person.health - extraRisk, 0, 100);
+        if (person.needsWarningCooldown <= 0) {
+          addEvent(`${person.name} is ignoring critical needs and may die.`);
+          person.needsWarningCooldown = 10;
+        }
+      } else {
+        person.ignoredNeedsHours = Math.max(0, (Number(person.ignoredNeedsHours) || 0) - dtHours * 1.8);
       }
     }
 
@@ -2674,6 +2371,12 @@
       state.market.demand.food = Math.max(4, foodNeed);
       state.market.demand.logs = Math.max(8, logsNeed);
       state.market.demand.herbs = Math.max(0, herbsNeed);
+      if (!MECHANICS.dynamicPricing) {
+        for (const good of GOODS) {
+          state.market.prices[good] = BASE_PRICES[good] || 1;
+        }
+        return;
+      }
 
       for (const good of GOODS) {
         const basePrice = BASE_PRICES[good] || 1;
@@ -3034,30 +2737,6 @@
 
       // Social food program removed
 
-      const capacity = state.city.houses.length * HOUSE_CAPACITY;
-      const freeSlots = Math.max(0, capacity - state.people.length);
-      if (freeSlots > 0) {
-        const wellFedAdults = state.people.filter((p) => p.ageDays >= 18 && p.hunger < 55 && p.health > 45).length;
-        const birthChance = clamp(
-          GAMEPLAY.births.baseChance + wellFedAdults * GAMEPLAY.births.perAdultBonus,
-          GAMEPLAY.births.baseChance,
-          GAMEPLAY.births.maxChance
-        );
-        const maxBirths = Math.min(freeSlots, GAMEPLAY.births.maxPerDay);
-        let born = 0;
-        for (let i = 0; i < maxBirths; i++) {
-          if (Math.random() < birthChance) {
-            const baby = createPerson({ isBirth: true });
-            addVisualEffect("birth", baby.x, baby.y - 10, 1.8);
-            addEvent(`${baby.name} was born.`);
-            born += 1;
-          }
-        }
-        if (born > 0) {
-          rebalanceJobs();
-        }
-      }
-
       const builtCount = (isBuildingBuilt("townhall") ? 1 : 0) + (isBuildingBuilt("market") ? 1 : 0) + (isBuildingBuilt("farm") ? 1 : 0);
       if (builtCount === 0) {
         state.city.stage = "Wilderness";
@@ -3090,11 +2769,11 @@
     function processHourTick(hourAbsolute) {
       computeDemandAndPrices();
 
-      if (hourAbsolute % 6 === 0) {
+      if (MECHANICS.jobRebalance && hourAbsolute % 6 === 0) {
         rebalanceJobs();
       }
 
-      if (hourAbsolute % 12 === 0 && isBuildingBuilt("market")) {
+      if (MECHANICS.trade && hourAbsolute % 12 === 0 && isBuildingBuilt("market")) {
         const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - GAMEPLAY.trade.exportLogReserve);
         const sold = Math.min(exportable, GAMEPLAY.trade.exportLogBatch);
         if (sold > 0) {
@@ -3103,7 +2782,9 @@
         }
       }
 
-      cityProgressionAndConstruction(hourAbsolute);
+      if (MECHANICS.construction) {
+        cityProgressionAndConstruction(hourAbsolute);
+      }
     }
 
     function updateSimulation(realDtSec) {
@@ -3120,7 +2801,9 @@
       }
 
       updatePeople(gameHours);
-      updateResourceRegeneration(gameHours);
+      if (MECHANICS.resourceRegen) {
+        updateResourceRegeneration(gameHours);
+      }
       decayRoadHeat(gameHours);
     }
 
@@ -3138,6 +2821,7 @@
       const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
       const totalWorldMoney = Math.round(totalMoneyScore());
       const challenge = moneyChallengeState();
+      ensureChallengeResults();
       const elapsedDays = challengeElapsedDays();
       const daysLeft = challengeDaysLeft();
       const challengeProgress = Math.round(challengeProgressRatio() * 100);
@@ -3172,11 +2856,16 @@
       const orchardFood = state.resources.orchards.reduce((sum, o) => sum + o.food, 0);
       const wildFood = state.resources.wild.reduce((sum, p) => sum + p.food, 0);
       const wildHerbs = state.resources.wild.reduce((sum, p) => sum + p.herbs, 0);
+      const resultsHtml = challenge.finished && challenge.winner
+        ? `<div><b>Winner:</b> ${challenge.winner.name} (earned $${challenge.winner.careerEarnings}, cash $${challenge.winner.money})</div>
+           ${challenge.results.map((row, idx) => `<div>#${idx + 1} ${row.name}: earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}</div>`).join("")}`
+        : "";
       ui.overlayText.innerHTML = `
         <div><b>Y${year} M${month} D${dayOfMonth}</b> ${hh} | Population: ${state.people.length}</div>
         <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)}</div>
         <div>Goal: maximize money in ${challenge.targetYears} years | Progress: <b>${challengeProgress}%</b> (${elapsedDays}/${challenge.totalDays} days, ${daysLeft} left)</div>
         <div>${challenge.finished ? `Challenge complete. Final $${challenge.finalMoney}, peak $${challenge.bestMoney}.` : `Current money: $${totalWorldMoney} | Best so far: $${challenge.bestMoney}`}</div>
+        ${resultsHtml}
         <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>
         <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
@@ -3213,6 +2902,7 @@
           <div class="mini"><b>Base profession:</b> ${roleLabel(selected.baseProfession || selected.role)}</div>
           <div class="mini"><b>Task:</b> ${taskLabel(selected.task)}</div>
           <div class="mini"><b>Money:</b> $${selected.money.toFixed(0)}</div>
+          <div class="mini"><b>Earned:</b> $${Math.round(selected.careerEarnings || 0)}</div>
           <div class="mini"><b>Experience:</b> ${Math.round(getExperience(selected, selected.role))}%</div>
           <div class="mini"><b>Switch penalty:</b> ${selected.switchPenaltyHours > 0 ? `${selected.switchPenaltyHours.toFixed(1)}h` : "none"}</div>
 
@@ -4404,23 +4094,7 @@
     function drawVisualEffects() {
       for (const fx of visualEffects) {
         const p = clamp(fx.ttl / Math.max(0.001, fx.maxTtl), 0, 1);
-        if (fx.type === "birth") {
-          const radius = 10 + (1 - p) * 14;
-          ctx.strokeStyle = `rgba(255, 231, 140, ${p * 0.9})`;
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(fx.x, fx.y, radius, 0, Math.PI * 2);
-          ctx.stroke();
-          for (let i = 0; i < 6; i++) {
-            const a = (i / 6) * Math.PI * 2;
-            const r1 = 4;
-            const r2 = radius;
-            ctx.beginPath();
-            ctx.moveTo(fx.x + Math.cos(a) * r1, fx.y + Math.sin(a) * r1);
-            ctx.lineTo(fx.x + Math.cos(a) * r2, fx.y + Math.sin(a) * r2);
-            ctx.stroke();
-          }
-        } else if (fx.type === "death") {
+        if (fx.type === "death") {
           const r = 11;
           ctx.fillStyle = `rgba(245, 245, 245, ${p * 0.95})`;
           ctx.strokeStyle = `rgba(50, 50, 50, ${p * 0.9})`;
@@ -4504,8 +4178,9 @@
 
     function renderGameToText() {
       const challenge = moneyChallengeState();
+      ensureChallengeResults();
       const heroes = [...state.people]
-        .sort((a, b) => (Number(b.money) || 0) - (Number(a.money) || 0))
+        .sort((a, b) => (Number(b.careerEarnings) || 0) - (Number(a.careerEarnings) || 0))
         .slice(0, HERO_TARGET_COUNT)
         .map((p) => ({
           id: p.id,
@@ -4516,6 +4191,7 @@
           hunger: Number(p.hunger.toFixed(1)),
           health: Number(p.health.toFixed(1)),
           money: Math.round(Number(p.money) || 0),
+          earned: Math.round(Number(p.careerEarnings) || 0),
           task: p.task ? p.task.type : "none"
         }));
       const payload = {
@@ -4533,7 +4209,14 @@
           finished: challenge.finished,
           currentMoney: Math.round(totalMoneyScore()),
           bestMoney: Math.round(challenge.bestMoney || 0),
-          finalMoney: Math.round(challenge.finalMoney || 0)
+          finalMoney: Math.round(challenge.finalMoney || 0),
+          winner: challenge.winner
+            ? {
+              name: challenge.winner.name,
+              earned: challenge.winner.careerEarnings,
+              cash: challenge.winner.money
+            }
+            : null
         },
         heroes,
         market: {

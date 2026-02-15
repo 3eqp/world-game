@@ -19,7 +19,7 @@
       <div class="subtitle">Top-down sandbox with finite resources and a live economy chain.</div>
 
       <div class="controls">
-        <button id="addPersonBtn">Add Person</button>
+        <button id="addPersonBtn">Add Hero</button>
         <button id="removeSelectedBtn" class="danger">Remove Selected</button>
         <button id="removeRandomBtn" class="danger">Remove Random</button>
         <button id="newSimBtn">New Simulation</button>
@@ -54,7 +54,7 @@
 
       <div class="stat-grid">
         <div class="stat-card">
-          <div class="stat-label">Population</div>
+          <div class="stat-label">Heroes</div>
           <div class="stat-value" id="popStat">0</div>
         </div>
         <div class="stat-card">
@@ -81,7 +81,7 @@
       </div>
 
       <div class="small-note">
-        Core loop: people age, lose health, earn money through production, buy food, and keep the city alive with farming, foraging, and logging.
+        Main goal: guide 4 heroes to earn as much money as possible in 5 years. If they ignore hunger and health for too long, they can die.
       </div>
     </aside>
 
@@ -119,157 +119,28 @@
         <h2 id="worldSettingsTitle">World Settings</h2>
         <button id="worldSettingsCloseBtn" class="danger">Close</button>
       </div>
-      <div class="mini">Change core simulation parameters. Settings are stored in save data.</div>
+      <div class="mini">Enable or disable simulation mechanics. Quantities are fixed by the game balance.</div>
 
       <div class="settings-section">
-        <h3>General</h3>
+        <h3>Mechanics</h3>
         <div class="settings-grid">
-          <label for="wsAutosaveInput">Autosave interval (sec)</label>
-          <input id="wsAutosaveInput" type="number" min="5" max="600" step="1">
-          <label for="wsLifeSpanDaysInput">Life span (days)</label>
-          <input id="wsLifeSpanDaysInput" type="number" min="20" max="500" step="1">
-        </div>
-      </div>
+          <label for="wsMechanicNeedsInput">Needs & health simulation</label>
+          <input id="wsMechanicNeedsInput" type="checkbox">
 
-      <div class="settings-section">
-        <h3>Gameplay & Economy</h3>
-        <div class="settings-grid">
-          <div class="settings-subtitle">Needs / Behavior</div><div></div>
-          <label for="wsNeedHungerBaseInput">Hunger base / hour</label>
-          <input id="wsNeedHungerBaseInput" type="number" min="0.05" max="5" step="0.01">
-          <label for="wsNeedHungerWorkInput">Hunger work bonus / hour</label>
-          <input id="wsNeedHungerWorkInput" type="number" min="0" max="3" step="0.01">
-          <label for="wsNeedHungerPenaltyInput">Hunger switch-penalty bonus / hour</label>
-          <input id="wsNeedHungerPenaltyInput" type="number" min="0" max="3" step="0.01">
-          <label for="wsNeedHealthDecayInput">Health decay base / hour</label>
-          <input id="wsNeedHealthDecayInput" type="number" min="0" max="2" step="0.01">
-          <label for="wsNeedHealthRegenInput">Health regen when fed / hour</label>
-          <input id="wsNeedHealthRegenInput" type="number" min="0" max="1" step="0.01">
-          <label for="wsNeedEatTriggerInput">Start eating at hunger</label>
-          <input id="wsNeedEatTriggerInput" type="number" min="0" max="100" step="1">
-          <label for="wsNeedEatFromInventoryInput">Use carried food at hunger</label>
-          <input id="wsNeedEatFromInventoryInput" type="number" min="0" max="100" step="1">
-          <label for="wsNeedBuyFoodTriggerInput">Start buying food at hunger</label>
-          <input id="wsNeedBuyFoodTriggerInput" type="number" min="0" max="100" step="1">
-          <label for="wsNeedEatExecuteInput">Can consume food at hunger</label>
-          <input id="wsNeedEatExecuteInput" type="number" min="0" max="100" step="1">
-          <label for="wsNeedEatReliefInput">Hunger relief per food</label>
-          <input id="wsNeedEatReliefInput" type="number" min="1" max="100" step="1">
+          <label for="wsMechanicTradeInput">Trading at market</label>
+          <input id="wsMechanicTradeInput" type="checkbox">
 
-          <div class="settings-subtitle">Trade</div><div></div>
-          <label for="wsTradeSellRawFactorInput">Sell factor raw goods</label>
-          <input id="wsTradeSellRawFactorInput" type="number" min="0.1" max="1.5" step="0.01">
-          <label for="wsTradeSellCraftFactorInput">Sell factor crafted goods</label>
-          <input id="wsTradeSellCraftFactorInput" type="number" min="0.1" max="1.5" step="0.01">
-          <label for="wsTradeExportBatchInput">Log export batch</label>
-          <input id="wsTradeExportBatchInput" type="number" min="0" max="50" step="1">
-          <label for="wsTradeExportReserveInput">Log export reserve</label>
-          <input id="wsTradeExportReserveInput" type="number" min="0" max="100" step="1">
+          <label for="wsMechanicDynamicPricingInput">Dynamic demand and prices</label>
+          <input id="wsMechanicDynamicPricingInput" type="checkbox">
 
-          <div class="settings-subtitle">Demand / Price</div><div></div>
-          <label for="wsDemandFoodPerPopInput">Food demand per pop</label>
-          <input id="wsDemandFoodPerPopInput" type="number" min="0.2" max="8" step="0.01">
-          <label for="wsDemandHungerFactorInput">Food demand hunger factor</label>
-          <input id="wsDemandHungerFactorInput" type="number" min="0" max="4" step="0.01">
-          <label for="wsDemandLogsPerPopInput">Logs demand per pop</label>
-          <input id="wsDemandLogsPerPopInput" type="number" min="0" max="3" step="0.01">
-          <label for="wsDemandHerbsPerPopInput">Herbs demand per pop</label>
-          <input id="wsDemandHerbsPerPopInput" type="number" min="0" max="3" step="0.01">
-          <label for="wsPriceRatioWeightInput">Price weight: demand/supply</label>
-          <input id="wsPriceRatioWeightInput" type="number" min="0.1" max="3" step="0.01">
-          <label for="wsPriceShortageWeightInput">Price weight: shortage</label>
-          <input id="wsPriceShortageWeightInput" type="number" min="0" max="3" step="0.01">
-          <label for="wsPriceSmoothingInput">Price smoothing (old weight)</label>
-          <input id="wsPriceSmoothingInput" type="number" min="0.05" max="0.95" step="0.01">
+          <label for="wsMechanicJobRebalanceInput">Auto job rebalance</label>
+          <input id="wsMechanicJobRebalanceInput" type="checkbox">
 
-          <div class="settings-subtitle">Jobs / Population</div><div></div>
-          <label for="wsJobsMaxChangeRatioInput">Max job switches / rebalance</label>
-          <input id="wsJobsMaxChangeRatioInput" type="number" min="0.02" max="1" step="0.01">
-          <label for="wsBirthBaseChanceInput">Birth base chance / day</label>
-          <input id="wsBirthBaseChanceInput" type="number" min="0" max="1" step="0.001">
-          <label for="wsBirthPerAdultBonusInput">Birth bonus per adult</label>
-          <input id="wsBirthPerAdultBonusInput" type="number" min="0" max="0.2" step="0.001">
-          <label for="wsBirthMaxChanceInput">Birth max chance / day</label>
-          <input id="wsBirthMaxChanceInput" type="number" min="0" max="1" step="0.001">
-          <label for="wsBirthMaxPerDayInput">Max births per day</label>
-          <input id="wsBirthMaxPerDayInput" type="number" min="0" max="10" step="1">
-        </div>
-      </div>
+          <label for="wsMechanicResourceRegenInput">Resource regeneration</label>
+          <input id="wsMechanicResourceRegenInput" type="checkbox">
 
-      <div class="settings-section">
-        <h3>Roads</h3>
-        <div class="settings-grid">
-          <label for="wsRoadDecayInput">Road decay / hour</label>
-          <input id="wsRoadDecayInput" type="number" min="0.001" max="2" step="0.001">
-
-          <label for="wsRoadStepInput">Road growth / step</label>
-          <input id="wsRoadStepInput" type="number" min="0.05" max="5" step="0.01">
-
-          <label for="wsRoadSegmentInput">Road growth / segment</label>
-          <input id="wsRoadSegmentInput" type="number" min="0.1" max="8" step="0.01">
-
-          <label for="wsRoadThresholdInput">Road draw threshold</label>
-          <input id="wsRoadThresholdInput" type="number" min="0.1" max="10" step="0.01">
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Resource Regeneration</h3>
-        <div class="settings-grid">
-          <label for="wsRegenForestInput">Forest wood</label>
-          <input id="wsRegenForestInput" type="number" min="0" max="1" step="0.001">
-
-          <label for="wsRegenWildFoodInput">Wild food</label>
-          <input id="wsRegenWildFoodInput" type="number" min="0" max="1" step="0.001">
-
-          <label for="wsRegenWildHerbsInput">Wild herbs</label>
-          <input id="wsRegenWildHerbsInput" type="number" min="0" max="1" step="0.001">
-
-          <label for="wsRegenOrchardInput">Orchard food</label>
-          <input id="wsRegenOrchardInput" type="number" min="0" max="1" step="0.001">
-
-          <label for="wsRegenFarmCropInput">Farm crop</label>
-          <input id="wsRegenFarmCropInput" type="number" min="0" max="1" step="0.001">
-
-          <label for="wsRegenFarmFertilityInput">Farm fertility</label>
-          <input id="wsRegenFarmFertilityInput" type="number" min="0" max="1" step="0.001">
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h3>Construction Costs</h3>
-        <div class="settings-grid cost-grid">
-          <div class="settings-subtitle">Town Hall</div><div></div>
-          <label for="wsCostTownhallLogsInput">Logs</label>
-          <input id="wsCostTownhallLogsInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostTownhallFoodInput">Food</label>
-          <input id="wsCostTownhallFoodInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostTownhallCashInput">Cash</label>
-          <input id="wsCostTownhallCashInput" type="number" min="0" max="99999" step="1">
-
-          <div class="settings-subtitle">Market</div><div></div>
-          <label for="wsCostMarketLogsInput">Logs</label>
-          <input id="wsCostMarketLogsInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostMarketFoodInput">Food</label>
-          <input id="wsCostMarketFoodInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostMarketCashInput">Cash</label>
-          <input id="wsCostMarketCashInput" type="number" min="0" max="99999" step="1">
-
-          <div class="settings-subtitle">Farm</div><div></div>
-          <label for="wsCostFarmLogsInput">Logs</label>
-          <input id="wsCostFarmLogsInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostFarmFoodInput">Food</label>
-          <input id="wsCostFarmFoodInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostFarmCashInput">Cash</label>
-          <input id="wsCostFarmCashInput" type="number" min="0" max="99999" step="1">
-
-          <div class="settings-subtitle">House</div><div></div>
-          <label for="wsCostHouseLogsInput">Logs</label>
-          <input id="wsCostHouseLogsInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostHouseFoodInput">Food</label>
-          <input id="wsCostHouseFoodInput" type="number" min="0" max="999" step="1">
-          <label for="wsCostHouseCashInput">Cash</label>
-          <input id="wsCostHouseCashInput" type="number" min="0" max="99999" step="1">
+          <label for="wsMechanicConstructionInput">City construction progression</label>
+          <input id="wsMechanicConstructionInput" type="checkbox">
         </div>
       </div>
 
