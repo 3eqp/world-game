@@ -106,6 +106,7 @@
       stageStat: document.getElementById("stageStat"),
       dayStat: document.getElementById("dayStat"),
       marketCashStat: document.getElementById("marketCashStat"),
+      worldMoneyStat: document.getElementById("worldMoneyStat"),
       overlayText: document.getElementById("overlayText"),
       professionLegend: document.getElementById("professionLegend"),
       personCard: document.getElementById("personCard"),
@@ -139,8 +140,8 @@
     let LIFE_SPAN_DAYS = 100;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const ROAD = {
-      cell: 24,
-      clickRadius: 18,
+      cell: 16,
+      clickRadius: 12,
       drawThreshold: 0.7,
       clickThreshold: 1.1,
       decayPerHour: 0.1,
@@ -205,11 +206,14 @@
     };
     const SHEET_ANIMS = Object.freeze({
       person: {
-        cols: 3,
-        rows: 5,
+        frameW: 16,
+        frameH: 16,
+        // Character block in a 4x5 RPG-style atlas (each block is 3x4 frames).
+        atlasX: 48,
+        atlasY: 256,
         walkFrames: 3,
-        walkFps: 8.5,
-        idleRow: 4,
+        walkFps: 9,
+        idleRow: 0,
         idleFrame: 1,
         rowByFacing: {
           down: 0,
@@ -652,6 +656,11 @@
       background: loadImage(ASSETS.background),
       pathTile: loadImage(ASSETS.pathTile),
       personSheet: loadImage(ASSETS.personSheet),
+      personWalk: loadImage(ASSETS.personWalk),
+      personIdle: loadImage(ASSETS.personIdle),
+      freePack: loadImage(ASSETS.freePack),
+      springTileset: loadImage(ASSETS.springTileset),
+      roadSheet: loadImage(ASSETS.roadSheet),
       house: loadImage(ASSETS.house),
       market: loadImage(ASSETS.market),
       farm: loadImage(ASSETS.farm),
@@ -673,7 +682,43 @@
       farm: null,
       townhall: null
     };
+    const tileCanvasCache = new Map();
+    const tilePatternCache = new Map();
     const worldDecor = buildWorldDecor();
+    const staticWorldLayer = {
+      canvas: document.createElement("canvas"),
+      ctx: null,
+      ready: false
+    };
+    staticWorldLayer.canvas.width = WORLD.width;
+    staticWorldLayer.canvas.height = WORLD.height;
+    staticWorldLayer.ctx = staticWorldLayer.canvas.getContext("2d");
+    staticWorldLayer.ctx.imageSmoothingEnabled = false;
+    const TILESET = Object.freeze({
+      size: 16,
+      spring: {
+        grassA: { x: 0, y: 0 },
+        grassB: { x: 1, y: 0 },
+        path: { x: 0, y: 1 },
+        flower: { x: 2, y: 1 },
+        clover: { x: 3, y: 1 }
+      },
+      free: {
+        bush: { x: 2, y: 9 },
+        rock: { x: 3, y: 9 },
+        fence: { x: 0, y: 10 },
+        crop: { x: 7, y: 11 }
+      },
+      road: {
+        main: { x: 0, y: 0 },
+        horizontal: { x: 1, y: 0 },
+        vertical: { x: 2, y: 0 },
+        diagonalA: { x: 3, y: 0 },
+        diagonalB: { x: 4, y: 0 },
+        junction: { x: 0, y: 1 },
+        hotspot: { x: 1, y: 1 }
+      }
+    });
 
     function pick(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
@@ -1998,16 +2043,49 @@
     }
 
     function decideTask(person) {
-      if (person.health < 55 && person.inventory.medkits > 0) {
-        return createTask("use_medkit", null, 0.1);
+      const lowHealth = person.health <= 52;
+      const highHunger = person.hunger >= GAMEPLAY.needs.eatDecisionHunger;
+      const criticalHunger = person.hunger >= Math.max(GAMEPLAY.needs.buyFoodHunger, 62);
+      const needsUrgentCare = lowHealth || criticalHunger;
+      const marketOpen = isBuildingBuilt("market");
+      const canBuyFood = marketOpen && state.market.stocks.food > 0 && person.money >= state.market.prices.food;
+      const canBuyMedkit = marketOpen && state.market.stocks.medkits > 0 && person.money >= state.market.prices.medkits;
+
+      // Priority survival loop: first meds/food, then economy/work.
+      if (lowHealth) {
+        if (person.inventory.medkits > 0) {
+          return createTask("use_medkit", null, 0.1);
+        }
+        if (canBuyMedkit) {
+          return createTask("buy_medkit", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.55);
+        }
+        const herbsPatch = nearestPatchWith("herbs");
+        if (herbsPatch && herbsPatch.patch.herbs > 0.9) {
+          return createTask("gather_herbs", { x: herbsPatch.patch.x, y: herbsPatch.patch.y }, 1.8, { patchIndex: herbsPatch.index });
+        }
       }
-      if (person.hunger >= GAMEPLAY.needs.eatDecisionHunger) {
+
+      if (highHunger) {
         if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
           return createTask("eat_food", null, 0.1);
         }
-        if (isBuildingBuilt("market") && person.hunger >= GAMEPLAY.needs.buyFoodHunger && state.market.stocks.food > 0 && person.money >= state.market.prices.food) {
+        if (canBuyFood) {
           return createTask("buy_food", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.5);
         }
+        const orchard = richestOrchard();
+        const wildFood = nearestPatchWith("food");
+        const orchardFood = orchard ? orchard.orchard.food : 0;
+        const wildFoodUnits = wildFood ? wildFood.patch.food : 0;
+        if (orchard && orchardFood >= wildFoodUnits && orchardFood > 1) {
+          return createTask("gather_orchard_food", { x: orchard.orchard.x, y: orchard.orchard.y }, 1.6, { orchardIndex: orchard.index });
+        }
+        if (wildFood && wildFoodUnits > 1) {
+          return createTask("gather_food", { x: wildFood.patch.x, y: wildFood.patch.y }, 1.7, { patchIndex: wildFood.index });
+        }
+      }
+
+      if (needsUrgentCare && canBuyMedkit) {
+        return createTask("buy_medkit", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.55);
       }
       if (sellableUnits(person) > 0) {
         return createTask("sell_goods", buildingTarget("market", 18, 8), 0.7);
@@ -2640,10 +2718,13 @@
     }
 
     function updateUI() {
+      const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
+      const totalWorldMoney = Math.round((Number(state.city.treasury) || 0) + (Number(state.market.treasury) || 0) + peopleCash);
       ui.popStat.textContent = String(state.people.length);
       ui.stageStat.textContent = state.city.stage;
       ui.dayStat.textContent = String(state.day);
       ui.marketCashStat.textContent = `$${Math.round(state.market.treasury)}`;
+      ui.worldMoneyStat.textContent = `$${totalWorldMoney}`;
 
       const hh = formatHour(currentHour());
       const stocks = state.market.stocks;
@@ -2976,6 +3057,73 @@
       return true;
     }
 
+    function drawImageCoverTo(targetCtx, img, x, y, w, h) {
+      if (!imageReady(img)) {
+        return false;
+      }
+      targetCtx.drawImage(img, x, y, w, h);
+      return true;
+    }
+
+    function tileCacheKey(img, tx, ty, size) {
+      return `${img.src}|${tx}|${ty}|${size}`;
+    }
+
+    function getTileCanvas(img, tx, ty, size = 16) {
+      if (!imageReady(img)) {
+        return null;
+      }
+      const key = tileCacheKey(img, tx, ty, size);
+      if (tileCanvasCache.has(key)) {
+        return tileCanvasCache.get(key);
+      }
+      const sx = tx * size;
+      const sy = ty * size;
+      if (sx < 0 || sy < 0 || sx + size > img.naturalWidth || sy + size > img.naturalHeight) {
+        return null;
+      }
+      const c = document.createElement("canvas");
+      c.width = size;
+      c.height = size;
+      const cctx = c.getContext("2d");
+      cctx.imageSmoothingEnabled = false;
+      cctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+      tileCanvasCache.set(key, c);
+      return c;
+    }
+
+    function getTilePattern(img, tx, ty, size = 16) {
+      const tile = getTileCanvas(img, tx, ty, size);
+      if (!tile) {
+        return null;
+      }
+      const key = `pattern:${tileCacheKey(img, tx, ty, size)}`;
+      if (tilePatternCache.has(key)) {
+        return tilePatternCache.get(key);
+      }
+      const pattern = ctx.createPattern(tile, "repeat");
+      tilePatternCache.set(key, pattern || null);
+      return pattern || null;
+    }
+
+    function drawTile(img, tx, ty, dx, dy, dw = 16, dh = 16, size = 16) {
+      const tile = getTileCanvas(img, tx, ty, size);
+      if (!tile) {
+        return false;
+      }
+      ctx.drawImage(tile, dx, dy, dw, dh);
+      return true;
+    }
+
+    function drawTileTo(targetCtx, img, tx, ty, dx, dy, dw = 16, dh = 16, size = 16) {
+      const tile = getTileCanvas(img, tx, ty, size);
+      if (!tile) {
+        return false;
+      }
+      targetCtx.drawImage(tile, dx, dy, dw, dh);
+      return true;
+    }
+
     function seedUnit(seed) {
       const s = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
       return s - Math.floor(s);
@@ -3098,6 +3246,159 @@
       }
     }
 
+    function drawWorldDecorTo(targetCtx) {
+      for (const item of worldDecor) {
+        const sprite = sprites[item.spriteKey];
+        drawImageCoverTo(targetCtx, sprite, item.x, item.y, item.w, item.h);
+      }
+    }
+
+    function drawSlicedEnvironmentLayerTo(targetCtx) {
+      if (!imageReady(sprites.springTileset)) {
+        return;
+      }
+      const town = BUILDINGS.townhall;
+      if (!town) {
+        return;
+      }
+      const baseX = Math.round(town.x - 160);
+      const baseY = Math.round(town.y - 120);
+      const cols = 30;
+      const rows = 22;
+      const s = TILESET.size;
+
+      for (let gy = 0; gy < rows; gy++) {
+        for (let gx = 0; gx < cols; gx++) {
+          const seed = gx * 31 + gy * 57 + 123;
+          const tile = seedUnit(seed) > 0.82 ? TILESET.spring.grassB : TILESET.spring.grassA;
+          drawTileTo(targetCtx, sprites.springTileset, tile.x, tile.y, baseX + gx * s, baseY + gy * s, s, s, s);
+          if (seedUnit(seed + 0.41) > 0.93) {
+            const deco = seedUnit(seed + 0.95) > 0.5 ? TILESET.spring.flower : TILESET.spring.clover;
+            drawTileTo(targetCtx, sprites.springTileset, deco.x, deco.y, baseX + gx * s, baseY + gy * s, s, s, s);
+          }
+        }
+      }
+
+      const cx = Math.round(town.x + town.w * 0.5 - 4 * s);
+      const cy = Math.round(town.y + town.h * 0.5 - 4 * s);
+      for (let i = 0; i < 9; i++) {
+        drawTileTo(targetCtx, sprites.springTileset, TILESET.spring.path.x, TILESET.spring.path.y, cx + i * s, cy + 4 * s, s, s, s);
+        drawTileTo(targetCtx, sprites.springTileset, TILESET.spring.path.x, TILESET.spring.path.y, cx + 4 * s, cy + i * s, s, s, s);
+      }
+
+      if (!imageReady(sprites.freePack)) {
+        return;
+      }
+      const fx = baseX + 2 * s;
+      const fy = baseY + rows * s - 2 * s;
+      for (let i = 0; i < 16; i++) {
+        drawTileTo(targetCtx, sprites.freePack, TILESET.free.fence.x, TILESET.free.fence.y, fx + i * s, fy, s, s, s);
+      }
+      for (let i = 0; i < 12; i++) {
+        const seed = i * 17.2 + 0.7;
+        const x = baseX + Math.floor(seedUnit(seed) * (cols - 2)) * s;
+        const y = baseY + Math.floor(seedUnit(seed + 0.51) * (rows - 2)) * s;
+        const tile = seedUnit(seed + 1.2) > 0.55 ? TILESET.free.bush : TILESET.free.rock;
+        drawTileTo(targetCtx, sprites.freePack, tile.x, tile.y, x, y, s, s, s);
+      }
+      for (let i = 0; i < 18; i++) {
+        const seed = i * 29.7 + 7;
+        const x = baseX + 8 * s + Math.floor(seedUnit(seed) * 10) * s;
+        const y = baseY + 10 * s + Math.floor(seedUnit(seed + 0.8) * 8) * s;
+        drawTileTo(targetCtx, sprites.freePack, TILESET.free.crop.x, TILESET.free.crop.y, x, y, s, s, s);
+      }
+    }
+
+    function ensureStaticWorldLayer() {
+      if (staticWorldLayer.ready) {
+        return true;
+      }
+      const staticAssetsReady = imageReady(sprites.background) &&
+        imageReady(sprites.springTileset) &&
+        imageReady(sprites.freePack) &&
+        worldDecor.every((item) => imageReady(sprites[item.spriteKey]));
+      const cctx = staticWorldLayer.ctx;
+      if (!cctx) {
+        return false;
+      }
+      cctx.clearRect(0, 0, WORLD.width, WORLD.height);
+      if (imageReady(sprites.background)) {
+        const pattern = cctx.createPattern(sprites.background, "repeat");
+        if (pattern) {
+          cctx.fillStyle = pattern;
+          cctx.fillRect(0, 0, WORLD.width, WORLD.height);
+        } else {
+          drawImageCoverTo(cctx, sprites.background, 0, 0, WORLD.width, WORLD.height);
+        }
+      } else {
+        cctx.fillStyle = "#20453f";
+        cctx.fillRect(0, 0, WORLD.width, WORLD.height);
+      }
+      drawSlicedEnvironmentLayerTo(cctx);
+      drawWorldDecorTo(cctx);
+      staticWorldLayer.ready = staticAssetsReady;
+      return true;
+    }
+
+    function drawSlicedEnvironmentLayer() {
+      if (!imageReady(sprites.springTileset)) {
+        return;
+      }
+      const town = BUILDINGS.townhall;
+      if (!town) {
+        return;
+      }
+      const baseX = Math.round(town.x - 160);
+      const baseY = Math.round(town.y - 120);
+      const cols = 30;
+      const rows = 22;
+      const s = TILESET.size;
+
+      for (let gy = 0; gy < rows; gy++) {
+        for (let gx = 0; gx < cols; gx++) {
+          const seed = gx * 31 + gy * 57 + 123;
+          const tile = seedUnit(seed) > 0.82 ? TILESET.spring.grassB : TILESET.spring.grassA;
+          drawTile(sprites.springTileset, tile.x, tile.y, baseX + gx * s, baseY + gy * s, s, s, s);
+          if (seedUnit(seed + 0.41) > 0.93) {
+            const deco = seedUnit(seed + 0.95) > 0.5 ? TILESET.spring.flower : TILESET.spring.clover;
+            drawTile(sprites.springTileset, deco.x, deco.y, baseX + gx * s, baseY + gy * s, s, s, s);
+          }
+        }
+      }
+
+      // Courtyard path cross.
+      const cx = Math.round(town.x + town.w * 0.5 - 4 * s);
+      const cy = Math.round(town.y + town.h * 0.5 - 4 * s);
+      for (let i = 0; i < 9; i++) {
+        drawTile(sprites.springTileset, TILESET.spring.path.x, TILESET.spring.path.y, cx + i * s, cy + 4 * s, s, s, s);
+        drawTile(sprites.springTileset, TILESET.spring.path.x, TILESET.spring.path.y, cx + 4 * s, cy + i * s, s, s, s);
+      }
+
+      if (imageReady(sprites.freePack)) {
+        // Fence strip.
+        const fx = baseX + 2 * s;
+        const fy = baseY + rows * s - 2 * s;
+        for (let i = 0; i < 16; i++) {
+          drawTile(sprites.freePack, TILESET.free.fence.x, TILESET.free.fence.y, fx + i * s, fy, s, s, s);
+        }
+        // Bushes and rocks.
+        for (let i = 0; i < 12; i++) {
+          const seed = i * 17.2 + 0.7;
+          const x = baseX + Math.floor(seedUnit(seed) * (cols - 2)) * s;
+          const y = baseY + Math.floor(seedUnit(seed + 0.51) * (rows - 2)) * s;
+          const tile = seedUnit(seed + 1.2) > 0.55 ? TILESET.free.bush : TILESET.free.rock;
+          drawTile(sprites.freePack, tile.x, tile.y, x, y, s, s, s);
+        }
+        // Crop mini-patches.
+        for (let i = 0; i < 18; i++) {
+          const seed = i * 29.7 + 7;
+          const x = baseX + 8 * s + Math.floor(seedUnit(seed) * 10) * s;
+          const y = baseY + 10 * s + Math.floor(seedUnit(seed + 0.8) * 8) * s;
+          drawTile(sprites.freePack, TILESET.free.crop.x, TILESET.free.crop.y, x, y, s, s, s);
+        }
+      }
+    }
+
     function drawSelectionMarker(x, y, size = 18) {
       if (!drawImageCover(sprites.market, x - size * 0.5, y - size * 1.08, size, size)) {
         drawImageCover(sprites.pathTile, x - size * 0.5, y - size * 1.08, size, size);
@@ -3119,6 +3420,19 @@
       return true;
     }
 
+    function drawAtlasFrame(img, srcX, srcY, frameW, frameH, frame, row, dx, dy, dw, dh) {
+      if (!imageReady(img) || frameW <= 0 || frameH <= 0) {
+        return false;
+      }
+      const fx = srcX + Math.floor(frame) * frameW;
+      const fy = srcY + Math.floor(row) * frameH;
+      if (fx < 0 || fy < 0 || fx + frameW > img.naturalWidth || fy + frameH > img.naturalHeight) {
+        return false;
+      }
+      ctx.drawImage(img, fx, fy, frameW, frameH, dx, dy, dw, dh);
+      return true;
+    }
+
     function animatedFrame(fps, frames, seed = 0) {
       if (!Number.isFinite(fps) || !Number.isFinite(frames) || frames <= 0) {
         return 0;
@@ -3127,21 +3441,49 @@
     }
 
     function drawPersonSprite(person) {
+      const anim = SHEET_ANIMS.person;
+      const hasMoveTask = Boolean(person.task && person.task.phase === "move");
+      const distToTarget = person.task ? Math.hypot((person.task.targetX || person.x) - person.x, (person.task.targetY || person.y) - person.y) : 0;
+      const moving = hasMoveTask && distToTarget > 1.25;
+      const facing = normalizeFacing(person.facing);
+      const row = anim.rowByFacing[facing] ?? anim.rowByFacing.down;
+      const frame = moving ? animatedFrame(anim.walkFps, anim.walkFrames, person.id * 0.37) : anim.idleFrame;
+      const dw = 42;
+      const dh = 58;
+      const dx = person.x - dw * 0.5;
+      const dy = person.y - dh * 0.82;
+
+      const walk = sprites.personWalk;
+      const idle = sprites.personIdle;
+      if (imageReady(walk)) {
+        // Render both walk and idle from one sheet to avoid visual blinking between mismatched atlases.
+        if (drawSheetFrame(walk, 12, 6, frame, row, dx, dy, dw, dh)) {
+          return true;
+        }
+      }
+      if (imageReady(idle)) {
+        if (drawSheetFrame(idle, 8, 6, moving ? frame : 1, row, dx, dy, dw, dh)) {
+          return true;
+        }
+      }
+
       const img = sprites.personSheet;
       if (!imageReady(img)) {
         return false;
       }
-      const anim = SHEET_ANIMS.person;
-      const moving = Boolean(person.task && person.task.phase === "move");
-      const facing = normalizeFacing(person.facing);
-      const row = moving ? (anim.rowByFacing[facing] ?? anim.rowByFacing.down) : anim.idleRow;
-      const frame = moving ? animatedFrame(anim.walkFps, anim.walkFrames, person.id * 0.37) : anim.idleFrame;
-      const dw = 34;
-      const dh = 46;
-      if (!drawSheetFrame(img, anim.cols, anim.rows, frame, row, person.x - dw * 0.5, person.y - dh * 0.82, dw, dh)) {
-        return false;
-      }
-      return true;
+      return drawAtlasFrame(
+        img,
+        anim.atlasX,
+        anim.atlasY,
+        anim.frameW,
+        anim.frameH,
+        frame,
+        row,
+        dx,
+        dy,
+        dw,
+        dh
+      );
     }
 
     function generateTintedSprite(base, tintColor, tintAlpha = 0.18) {
@@ -3182,10 +3524,11 @@
 
     function drawBuilding(b, fill, stroke, label, locked = false, sprite = null, selected = false, icon = null) {
       const mainSprite = sprite || sprites.house;
-      const dx = b.x - 12;
-      const dy = b.y - 22;
-      const dw = b.w + 24;
-      const dh = b.h + 30;
+      const scale = 1.34;
+      const dw = b.w * scale;
+      const dh = b.h * scale;
+      const dx = b.x + b.w * 0.5 - dw * 0.5;
+      const dy = b.y + b.h * 0.5 - dh * 0.58;
       drawImageCover(mainSprite, dx, dy, dw, dh);
       if (imageReady(icon)) {
         drawImageCover(icon, b.x + b.w - 24, b.y - 16, 20, 20);
@@ -3207,8 +3550,9 @@
         return;
       }
 
-      const tile = imageReady(sprites.pathTile) ? sprites.pathTile : null;
-      if (!tile) {
+      const hasRoadSheet = imageReady(sprites.roadSheet);
+      const fallbackTile = imageReady(sprites.pathTile) ? sprites.pathTile : null;
+      if (!hasRoadSheet && !fallbackTile) {
         ctx.strokeStyle = "rgba(219, 199, 146, 0.48)";
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -3227,50 +3571,123 @@
         const length = Math.hypot(e.x2 - e.x1, e.y2 - e.y1);
         const normalized = clamp(e.heat / ROAD.maxEdgeHeat, 0, 1);
         const size = 14 + normalized * 8;
-        const steps = Math.max(1, Math.floor(length / (size * 0.55)));
+        const dx = e.gx2 - e.gx1;
+        const dy = e.gy2 - e.gy1;
+        const isDiag = Math.abs(dx) === 1 && Math.abs(dy) === 1;
+        const isVertical = dx === 0 && dy !== 0;
+        const roadTile = isDiag
+          ? (dx * dy > 0 ? TILESET.road.diagonalA : TILESET.road.diagonalB)
+          : (isVertical ? TILESET.road.vertical : TILESET.road.horizontal);
+        const steps = Math.max(1, Math.floor(length / (size * 0.95)));
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
-          const x = e.x1 + (e.x2 - e.x1) * t - size * 0.5;
-          const y = e.y1 + (e.y2 - e.y1) * t - size * 0.5;
-          drawImageCover(tile, x, y, size, size);
+          const cx = e.x1 + (e.x2 - e.x1) * t;
+          const cy = e.y1 + (e.y2 - e.y1) * t;
+          if (hasRoadSheet) {
+            drawTile(sprites.roadSheet, roadTile.x, roadTile.y, cx - size * 0.5, cy - size * 0.5, size, size, TILESET.size);
+          } else {
+            drawImageCover(fallbackTile, cx - size * 0.5, cy - size * 0.5, size, size);
+          }
         }
       }
 
       for (const c of cells) {
         const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
         const size = 12 + normalized * 8;
-        drawImageCover(tile, c.cx - size * 0.5, c.cy - size * 0.5, size, size);
+        if (hasRoadSheet) {
+          const hasLeft = Number(state.roadHeat[roadKey(c.gx - 1, c.gy)]) >= ROAD.drawThreshold;
+          const hasRight = Number(state.roadHeat[roadKey(c.gx + 1, c.gy)]) >= ROAD.drawThreshold;
+          const hasUp = Number(state.roadHeat[roadKey(c.gx, c.gy - 1)]) >= ROAD.drawThreshold;
+          const hasDown = Number(state.roadHeat[roadKey(c.gx, c.gy + 1)]) >= ROAD.drawThreshold;
+          const degree = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0) + (hasUp ? 1 : 0) + (hasDown ? 1 : 0);
+          const tile = degree >= 3 ? TILESET.road.junction : TILESET.road.hotspot;
+          drawTile(sprites.roadSheet, tile.x, tile.y, c.cx - size * 0.5, c.cy - size * 0.5, size, size, TILESET.size);
+        } else {
+          drawImageCover(fallbackTile, c.cx - size * 0.5, c.cy - size * 0.5, size, size);
+        }
         if (isSelectedObject(`road:${c.key}`)) {
           drawSelectionMarker(c.cx, c.cy - 2, 16);
         }
       }
     }
 
-    function renderMapBase() {
-      ensureGeneratedBuildingSprites();
-      if (imageReady(sprites.background)) {
-        const pattern = ctx.createPattern(sprites.background, "repeat");
-        if (pattern) {
-          ctx.fillStyle = pattern;
-          ctx.fillRect(0, 0, WORLD.width, WORLD.height);
-        } else {
-          drawImageCover(sprites.background, 0, 0, WORLD.width, WORLD.height);
-        }
-      } else {
-        ctx.fillStyle = "#20453f";
-        ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+    function fillZoneCircle(x, y, r, fill, stroke) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    function fillZoneRect(x, y, w, h, fill, stroke) {
+      ctx.fillStyle = fill;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, w, h);
+    }
+
+    function drawZoneOverlays() {
+      ctx.save();
+
+      for (let i = 0; i < state.resources.wild.length; i++) {
+        const p = state.resources.wild[i];
+        fillZoneCircle(p.x, p.y, 52, "rgba(235, 196, 106, 0.14)", "rgba(247, 217, 152, 0.6)");
+      }
+      for (let i = 0; i < state.resources.orchards.length; i++) {
+        const o = state.resources.orchards[i];
+        fillZoneCircle(o.x, o.y, 62, "rgba(124, 204, 128, 0.12)", "rgba(171, 230, 176, 0.6)");
+      }
+      for (let i = 0; i < state.resources.forests.length; i++) {
+        const f = state.resources.forests[i];
+        fillZoneCircle(f.x, f.y, 70, "rgba(69, 131, 87, 0.14)", "rgba(135, 196, 153, 0.55)");
       }
 
-      drawWorldDecor();
+      if (isBuildingBuilt("farm")) {
+        const b = BUILDINGS.farm;
+        fillZoneRect(b.x - 18, b.y - 14, b.w + 36, b.h + 28, "rgba(124, 204, 128, 0.12)", "rgba(171, 230, 176, 0.6)");
+      }
+      if (isBuildingBuilt("market")) {
+        const b = BUILDINGS.market;
+        fillZoneRect(b.x - 16, b.y - 12, b.w + 32, b.h + 24, "rgba(238, 180, 96, 0.12)", "rgba(246, 207, 150, 0.62)");
+      }
+      if (isBuildingBuilt("townhall")) {
+        const b = BUILDINGS.townhall;
+        fillZoneRect(b.x - 14, b.y - 10, b.w + 28, b.h + 20, "rgba(162, 171, 232, 0.12)", "rgba(194, 201, 245, 0.62)");
+      }
+
+      for (let i = 0; i < state.city.houses.length; i++) {
+        const h = state.city.houses[i];
+        fillZoneRect(h.x - 8, h.y - 8, h.w + 16, h.h + 16, "rgba(186, 213, 247, 0.08)", "rgba(203, 225, 252, 0.42)");
+      }
+
+      ctx.restore();
+    }
+
+    function renderMapBase() {
+      ensureGeneratedBuildingSprites();
+      ensureStaticWorldLayer();
+      ctx.drawImage(staticWorldLayer.canvas, 0, 0);
       drawRoadNetwork();
 
       // Home district
       for (let i = 0; i < state.city.houses.length; i++) {
         const h = state.city.houses[i];
-        drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 18, h.y + h.h - 8, 16, 16);
-        drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 2, h.y + h.h - 8, 16, 16);
+        if (!drawTile(sprites.roadSheet, TILESET.road.hotspot.x, TILESET.road.hotspot.y, h.x + h.w * 0.5 - 18, h.y + h.h - 8, 16, 16, TILESET.size)) {
+          drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 18, h.y + h.h - 8, 16, 16);
+        }
+        if (!drawTile(sprites.roadSheet, TILESET.road.hotspot.x, TILESET.road.hotspot.y, h.x + h.w * 0.5 - 2, h.y + h.h - 8, 16, 16, TILESET.size)) {
+          drawImageCover(sprites.pathTile, h.x + h.w * 0.5 - 2, h.y + h.h - 8, 16, 16);
+        }
         drawImageCover(sprites.farm, h.x + h.w - 8, h.y + h.h - 12, 22, 22);
-        drawImageCover(sprites.house, h.x - 12, h.y - 22, h.w + 24, h.h + 32);
+        const houseScale = 1.28;
+        const houseDw = h.w * houseScale;
+        const houseDh = h.h * houseScale;
+        const houseDx = h.x + h.w * 0.5 - houseDw * 0.5;
+        const houseDy = h.y + h.h * 0.5 - houseDh * 0.58;
+        drawImageCover(sprites.house, houseDx, houseDy, houseDw, houseDh);
         if (isSelectedBuilding(`house:${i}`)) {
           drawSelectionMarker(h.x + h.w * 0.5, h.y - 8, 20);
         }
@@ -3319,6 +3736,8 @@
       if (isBuildingBuilt("townhall")) {
         drawBuilding(BUILDINGS.townhall, "#766e8e", "#4f4a63", "Town Hall", false, generatedBuildingSprites.townhall || sprites.house, isSelectedBuilding("building:townhall"), sprites.iconTownhall);
       }
+
+      drawZoneOverlays();
     }
 
     function drawPeople() {
