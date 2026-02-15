@@ -43,8 +43,9 @@ window.WorldGame.Config = Object.freeze({
     iconClinic: "assets/cute/cow.png"
   },
   BUILDINGS: {
-    market: { x: 1500, y: 1248, w: 132, h: 94, name: "Market" },
-    farm: { x: 1160, y: 1252, w: 135, h: 98, name: "Farm" },
+    bank: { x: 760, y: 900, w: 126, h: 90, name: "Bank" },
+    market: { x: 1760, y: 1220, w: 132, h: 94, name: "Market" },
+    farm: { x: 940, y: 1240, w: 135, h: 98, name: "Farm" },
     townhall: { x: 1328, y: 1220, w: 142, h: 98, name: "Town Hall" }
   },
   ROLE_COLORS: {
@@ -53,14 +54,11 @@ window.WorldGame.Config = Object.freeze({
     woodcutter: "#5f8f53",
     unemployed: "#9f9f9f"
   },
-  GOODS: ["food", "logs", "planks", "furniture", "herbs", "medkits"],
+  GOODS: ["food", "logs", "herbs"],
   BASE_PRICES: {
     food: 8,
     logs: 6,
-    planks: 14,
-    furniture: 32,
-    herbs: 7,
-    medkits: 22
+    herbs: 7
   },
   NAMES: [
     "Arin", "Mila", "Nora", "Pavel", "Tara", "Ilya", "Romi", "Kian", "Vera", "Lana",

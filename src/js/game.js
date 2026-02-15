@@ -62,14 +62,12 @@
       wsNeedEatReliefInput: document.getElementById("wsNeedEatReliefInput"),
       wsTradeSellRawFactorInput: document.getElementById("wsTradeSellRawFactorInput"),
       wsTradeSellCraftFactorInput: document.getElementById("wsTradeSellCraftFactorInput"),
-      wsTradeSocialFoodPerPopInput: document.getElementById("wsTradeSocialFoodPerPopInput"),
       wsTradeExportBatchInput: document.getElementById("wsTradeExportBatchInput"),
       wsTradeExportReserveInput: document.getElementById("wsTradeExportReserveInput"),
       wsDemandFoodPerPopInput: document.getElementById("wsDemandFoodPerPopInput"),
       wsDemandHungerFactorInput: document.getElementById("wsDemandHungerFactorInput"),
       wsDemandLogsPerPopInput: document.getElementById("wsDemandLogsPerPopInput"),
       wsDemandHerbsPerPopInput: document.getElementById("wsDemandHerbsPerPopInput"),
-      wsDemandMedkitsPerPopInput: document.getElementById("wsDemandMedkitsPerPopInput"),
       wsPriceRatioWeightInput: document.getElementById("wsPriceRatioWeightInput"),
       wsPriceShortageWeightInput: document.getElementById("wsPriceShortageWeightInput"),
       wsPriceSmoothingInput: document.getElementById("wsPriceSmoothingInput"),
@@ -139,10 +137,12 @@
       KeyS: false,
       KeyD: false
     };
-    let LIFE_SPAN_DAYS = 100;
+    let LIFE_SPAN_DAYS = 360;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const SIMPLE_GRAPHICS = true;
-    const PERSON_CLICK_RADIUS = 20;
+    const VISUAL_SCALE = 2;
+    const PERSON_CLICK_RADIUS = 40;
+    const OBJECT_TEXTURE_GAP = 28;
     const ROAD = {
       cell: 16,
       clickRadius: 12,
@@ -184,7 +184,6 @@
       trade: {
         sellRawFactor: 0.9,
         sellCraftFactor: 0.96,
-        socialFoodPerPop: 0.5,
         exportLogReserve: 2,
         exportLogBatch: 3
       },
@@ -193,7 +192,6 @@
         foodHungerFactor: 1.05,
         logsPerPop: 0.16,
         herbsPerPop: 0.24,
-        medkitsPerPop: 0.05,
         priceRatioWeight: 0.88,
         priceShortageWeight: 0.55,
         priceSmoothingOldWeight: 0.55
@@ -269,11 +267,11 @@
         roadEdges: {},
         city: {
           stage: "Wilderness",
-          treasury: Math.round(380 * moneyScale),
+          treasury: 0,
           houses: [],
-          furnitureLevel: Math.round(5 * resourceScale),
           companies: {},
           built: {
+            bank: true,
             townhall: false,
             market: false,
             farm: false
@@ -285,27 +283,23 @@
             houses: []
           }
         },
+        bank: {
+          treasury: 0
+        },
         market: {
-          treasury: Math.round(2400 * moneyScale),
+          treasury: 0,
           stocks: {
             food: Math.round(24 * resourceScale),
             logs: Math.round(8 * resourceScale),
-            planks: 0,
-            furniture: 0,
-            herbs: Math.round(10 * resourceScale),
-            medkits: 0
+            herbs: Math.round(10 * resourceScale)
           },
           demand: {
             food: 20,
             logs: 10,
-            planks: 0,
-            furniture: 0,
-            herbs: 10,
-            medkits: 4
+            herbs: 10
           },
           dailyNeed: {
-            food: 0,
-            medkits: 0
+            food: 0
           },
           prices: { ...BASE_PRICES }
         },
@@ -342,7 +336,7 @@
       return {
         autosaveIntervalSec: 20,
         gameplay: {
-          lifeSpanDays: 100,
+          lifeSpanDays: 360,
           needs: {
             hungerBase: 0.82,
             hungerWorkBonus: 0.28,
@@ -358,7 +352,6 @@
           trade: {
             sellRawFactor: 0.9,
             sellCraftFactor: 0.96,
-            socialFoodPerPop: 0.5,
             exportLogBatch: 3,
             exportLogReserve: 2
           },
@@ -367,7 +360,6 @@
             foodHungerFactor: 1.05,
             logsPerPop: 0.16,
             herbsPerPop: 0.24,
-            medkitsPerPop: 0.05,
             priceRatioWeight: 0.88,
             priceShortageWeight: 0.55,
             priceSmoothingOldWeight: 0.55
@@ -476,7 +468,6 @@
           trade: {
             sellRawFactor: sanitizeNumber(rawTrade.sellRawFactor, defaults.gameplay.trade.sellRawFactor, 0.1, 1.5),
             sellCraftFactor: sanitizeNumber(rawTrade.sellCraftFactor, defaults.gameplay.trade.sellCraftFactor, 0.1, 1.5),
-            socialFoodPerPop: sanitizeNumber(rawTrade.socialFoodPerPop, defaults.gameplay.trade.socialFoodPerPop, 0, 3),
             exportLogBatch: sanitizeNumber(rawTrade.exportLogBatch, defaults.gameplay.trade.exportLogBatch, 0, 50, true),
             exportLogReserve: sanitizeNumber(rawTrade.exportLogReserve, defaults.gameplay.trade.exportLogReserve, 0, 100, true)
           },
@@ -485,7 +476,6 @@
             foodHungerFactor: sanitizeNumber(rawMarketModel.foodHungerFactor, defaults.gameplay.marketModel.foodHungerFactor, 0, 4),
             logsPerPop: sanitizeNumber(rawMarketModel.logsPerPop, defaults.gameplay.marketModel.logsPerPop, 0, 3),
             herbsPerPop: sanitizeNumber(rawMarketModel.herbsPerPop, defaults.gameplay.marketModel.herbsPerPop, 0, 3),
-            medkitsPerPop: sanitizeNumber(rawMarketModel.medkitsPerPop, defaults.gameplay.marketModel.medkitsPerPop, 0, 3),
             priceRatioWeight: sanitizeNumber(rawMarketModel.priceRatioWeight, defaults.gameplay.marketModel.priceRatioWeight, 0.1, 3),
             priceShortageWeight: sanitizeNumber(rawMarketModel.priceShortageWeight, defaults.gameplay.marketModel.priceShortageWeight, 0, 3),
             priceSmoothingOldWeight: sanitizeNumber(rawMarketModel.priceSmoothingOldWeight, defaults.gameplay.marketModel.priceSmoothingOldWeight, 0.05, 0.95)
@@ -540,7 +530,6 @@
 
       GAMEPLAY.trade.sellRawFactor = next.gameplay.trade.sellRawFactor;
       GAMEPLAY.trade.sellCraftFactor = next.gameplay.trade.sellCraftFactor;
-      GAMEPLAY.trade.socialFoodPerPop = next.gameplay.trade.socialFoodPerPop;
       GAMEPLAY.trade.exportLogBatch = next.gameplay.trade.exportLogBatch;
       GAMEPLAY.trade.exportLogReserve = next.gameplay.trade.exportLogReserve;
 
@@ -548,7 +537,6 @@
       GAMEPLAY.marketModel.foodHungerFactor = next.gameplay.marketModel.foodHungerFactor;
       GAMEPLAY.marketModel.logsPerPop = next.gameplay.marketModel.logsPerPop;
       GAMEPLAY.marketModel.herbsPerPop = next.gameplay.marketModel.herbsPerPop;
-      GAMEPLAY.marketModel.medkitsPerPop = next.gameplay.marketModel.medkitsPerPop;
       GAMEPLAY.marketModel.priceRatioWeight = next.gameplay.marketModel.priceRatioWeight;
       GAMEPLAY.marketModel.priceShortageWeight = next.gameplay.marketModel.priceShortageWeight;
       GAMEPLAY.marketModel.priceSmoothingOldWeight = next.gameplay.marketModel.priceSmoothingOldWeight;
@@ -604,7 +592,6 @@
           trade: {
             sellRawFactor: GAMEPLAY.trade.sellRawFactor,
             sellCraftFactor: GAMEPLAY.trade.sellCraftFactor,
-            socialFoodPerPop: GAMEPLAY.trade.socialFoodPerPop,
             exportLogBatch: GAMEPLAY.trade.exportLogBatch,
             exportLogReserve: GAMEPLAY.trade.exportLogReserve
           },
@@ -613,7 +600,6 @@
             foodHungerFactor: GAMEPLAY.marketModel.foodHungerFactor,
             logsPerPop: GAMEPLAY.marketModel.logsPerPop,
             herbsPerPop: GAMEPLAY.marketModel.herbsPerPop,
-            medkitsPerPop: GAMEPLAY.marketModel.medkitsPerPop,
             priceRatioWeight: GAMEPLAY.marketModel.priceRatioWeight,
             priceShortageWeight: GAMEPLAY.marketModel.priceShortageWeight,
             priceSmoothingOldWeight: GAMEPLAY.marketModel.priceSmoothingOldWeight
@@ -679,17 +665,11 @@
       market: loadImage(ASSETS.market),
       farm: loadImage(ASSETS.farm),
       townhall: loadImage(ASSETS.townhall),
-      sawmill: loadImage(ASSETS.sawmill),
-      workshop: loadImage(ASSETS.workshop),
-      clinic: loadImage(ASSETS.clinic),
       forest: loadImage(ASSETS.forest),
       wild: loadImage(ASSETS.wild),
       iconMarket: loadImage(ASSETS.iconMarket),
       iconFarm: loadImage(ASSETS.iconFarm),
-      iconTownhall: loadImage(ASSETS.iconTownhall),
-      iconSawmill: loadImage(ASSETS.iconSawmill),
-      iconWorkshop: loadImage(ASSETS.iconWorkshop),
-      iconClinic: loadImage(ASSETS.iconClinic)
+      iconTownhall: loadImage(ASSETS.iconTownhall)
     };
     const generatedBuildingSprites = {
       market: null,
@@ -799,6 +779,7 @@
       const incomingBuilt = incomingCity.built && typeof incomingCity.built === "object" ? incomingCity.built : null;
       if (incomingBuilt) {
         state.city.built = {
+          bank: incomingBuilt.bank !== false,
           townhall: Boolean(incomingBuilt.townhall),
           market: Boolean(incomingBuilt.market),
           farm: Boolean(incomingBuilt.farm)
@@ -806,11 +787,16 @@
       } else {
         const legacyBuilt = false;
         state.city.built = {
+          bank: true,
           townhall: legacyBuilt,
           market: legacyBuilt,
           farm: legacyBuilt
         };
       }
+      const incomingBank = incoming.bank && typeof incoming.bank === "object" ? incoming.bank : {};
+      state.bank = {
+        treasury: Math.max(0, Number(incomingBank.treasury) || 0)
+      };
       const incomingConstruction = incomingCity.construction && typeof incomingCity.construction === "object"
         ? incomingCity.construction
         : {};
@@ -883,13 +869,6 @@
       if (typeof state.selectedBuilding !== "string" && state.selectedBuilding !== null) {
         state.selectedBuilding = null;
       }
-      if (state.selectedBuilding && (
-        state.selectedBuilding === "building:sawmill" ||
-        state.selectedBuilding === "building:workshop" ||
-        state.selectedBuilding === "building:clinic"
-      )) {
-        state.selectedBuilding = null;
-      }
       if (state.selectedBuilding && state.selectedBuilding.startsWith("building:")) {
         const buildingKey = state.selectedBuilding.split(":")[1];
         if (!isBuildingBuilt(buildingKey)) {
@@ -897,6 +876,9 @@
         }
       }
       if (typeof state.selectedObject !== "string" && state.selectedObject !== null) {
+        state.selectedObject = null;
+      }
+      if (typeof state.selectedObject === "string" && state.selectedObject.startsWith("road:")) {
         state.selectedObject = null;
       }
       if (![1, 3, 6].includes(state.speed)) {
@@ -912,6 +894,7 @@
         state.day = 1;
       }
       applyWorldSettings(incoming.worldSettings || state.worldSettings);
+      normalizeObjectTextureSpacing();
       computeDemandAndPrices();
       rebalanceJobs();
       syncUiToggles();
@@ -992,7 +975,6 @@
           trade: {
             sellRawFactor: ui.wsTradeSellRawFactorInput ? ui.wsTradeSellRawFactorInput.value : undefined,
             sellCraftFactor: ui.wsTradeSellCraftFactorInput ? ui.wsTradeSellCraftFactorInput.value : undefined,
-            socialFoodPerPop: ui.wsTradeSocialFoodPerPopInput ? ui.wsTradeSocialFoodPerPopInput.value : undefined,
             exportLogBatch: ui.wsTradeExportBatchInput ? ui.wsTradeExportBatchInput.value : undefined,
             exportLogReserve: ui.wsTradeExportReserveInput ? ui.wsTradeExportReserveInput.value : undefined
           },
@@ -1001,7 +983,6 @@
             foodHungerFactor: ui.wsDemandHungerFactorInput ? ui.wsDemandHungerFactorInput.value : undefined,
             logsPerPop: ui.wsDemandLogsPerPopInput ? ui.wsDemandLogsPerPopInput.value : undefined,
             herbsPerPop: ui.wsDemandHerbsPerPopInput ? ui.wsDemandHerbsPerPopInput.value : undefined,
-            medkitsPerPop: ui.wsDemandMedkitsPerPopInput ? ui.wsDemandMedkitsPerPopInput.value : undefined,
             priceRatioWeight: ui.wsPriceRatioWeightInput ? ui.wsPriceRatioWeightInput.value : undefined,
             priceShortageWeight: ui.wsPriceShortageWeightInput ? ui.wsPriceShortageWeightInput.value : undefined,
             priceSmoothingOldWeight: ui.wsPriceSmoothingInput ? ui.wsPriceSmoothingInput.value : undefined
@@ -1076,7 +1057,6 @@
 
       ui.wsTradeSellRawFactorInput.value = formatForInput(settings.gameplay.trade.sellRawFactor);
       ui.wsTradeSellCraftFactorInput.value = formatForInput(settings.gameplay.trade.sellCraftFactor);
-      ui.wsTradeSocialFoodPerPopInput.value = formatForInput(settings.gameplay.trade.socialFoodPerPop);
       ui.wsTradeExportBatchInput.value = formatForInput(settings.gameplay.trade.exportLogBatch, 0);
       ui.wsTradeExportReserveInput.value = formatForInput(settings.gameplay.trade.exportLogReserve, 0);
 
@@ -1084,7 +1064,6 @@
       ui.wsDemandHungerFactorInput.value = formatForInput(settings.gameplay.marketModel.foodHungerFactor);
       ui.wsDemandLogsPerPopInput.value = formatForInput(settings.gameplay.marketModel.logsPerPop);
       ui.wsDemandHerbsPerPopInput.value = formatForInput(settings.gameplay.marketModel.herbsPerPop);
-      ui.wsDemandMedkitsPerPopInput.value = formatForInput(settings.gameplay.marketModel.medkitsPerPop);
       ui.wsPriceRatioWeightInput.value = formatForInput(settings.gameplay.marketModel.priceRatioWeight);
       ui.wsPriceShortageWeightInput.value = formatForInput(settings.gameplay.marketModel.priceShortageWeight);
       ui.wsPriceSmoothingInput.value = formatForInput(settings.gameplay.marketModel.priceSmoothingOldWeight);
@@ -1225,7 +1204,8 @@
       const currentSettings = cloneWorldSettings(sanitizeWorldSettings(runtimeWorldSettings()));
       state = createInitialState(true);
       applyWorldSettings(currentSettings);
-      initPopulation(Math.floor(rand(6, 11)));
+      normalizeObjectTextureSpacing();
+      initPopulation(4);
       computeDemandAndPrices();
       camera.resetZoom();
       state.paused = false;
@@ -1269,10 +1249,7 @@
         inventory: {
           food: isBirth ? 0 : (Math.random() < 0.45 ? 1 : 0),
           logs: 0,
-          planks: 0,
-          furniture: 0,
-          herbs: 0,
-          medkits: 0
+          herbs: 0
         }
       };
       state.people.push(person);
@@ -1297,14 +1274,14 @@
       person.alive = false;
       const transfer = Math.max(0, Math.round(Number(person.money) || 0));
       if (transfer > 0) {
-        state.city.treasury += transfer;
+        state.bank.treasury += transfer;
         person.money = 0;
       }
       addVisualEffect("death", person.x, person.y - 10, 1.9);
       state.graves.push({ name: person.name, ageDays: person.ageDays, reason });
       removePersonById(person.id, reason);
       if (transfer > 0) {
-        addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}). $${transfer} transferred to city treasury.`);
+        addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}). $${transfer} transferred to bank.`);
       } else {
         addEvent(`${person.name} died at day ${person.ageDays.toFixed(1)} (${reason}).`);
       }
@@ -1663,6 +1640,221 @@
       return { x: hub.x + fallbackOffsetX, y: hub.y + fallbackOffsetY };
     }
 
+    function scaledRectAt(x, y, w, h) {
+      const scale = SIMPLE_GRAPHICS ? VISUAL_SCALE : 1;
+      const sw = w * scale;
+      const sh = h * scale;
+      return {
+        x: x + w * 0.5 - sw * 0.5,
+        y: y + h * 0.5 - sh * 0.5,
+        w: sw,
+        h: sh
+      };
+    }
+
+    function rectOverlaps(a, b, gap = OBJECT_TEXTURE_GAP) {
+      return !(a.x + a.w + gap <= b.x ||
+        b.x + b.w + gap <= a.x ||
+        a.y + a.h + gap <= b.y ||
+        b.y + b.h + gap <= a.y);
+    }
+
+    function resolveNonOverlappingPosition(x, y, w, h, occupiedRects) {
+      const step = 48;
+      const maxRing = 22;
+      const testAt = (tx, ty) => {
+        const r = scaledRectAt(tx, ty, w, h);
+        if (r.x < 0 || r.y < 0 || r.x + r.w > WORLD.width || r.y + r.h > WORLD.height) {
+          return false;
+        }
+        return !occupiedRects.some((other) => rectOverlaps(r, other, OBJECT_TEXTURE_GAP));
+      };
+
+      if (testAt(x, y)) {
+        return { x, y };
+      }
+      for (let ring = 1; ring <= maxRing; ring++) {
+        for (let gx = -ring; gx <= ring; gx++) {
+          for (let gy = -ring; gy <= ring; gy++) {
+            if (Math.max(Math.abs(gx), Math.abs(gy)) !== ring) {
+              continue;
+            }
+            const tx = x + gx * step;
+            const ty = y + gy * step;
+            if (testAt(tx, ty)) {
+              return { x: tx, y: ty };
+            }
+          }
+        }
+      }
+      return { x, y };
+    }
+
+    function resolveNonOverlappingCenter(x, y, radius, occupiedRects) {
+      const step = 48;
+      const maxRing = 26;
+      const r = Math.max(8, radius);
+      const testAt = (cx, cy) => {
+        const rect = { x: cx - r, y: cy - r, w: r * 2, h: r * 2 };
+        if (rect.x < 0 || rect.y < 0 || rect.x + rect.w > WORLD.width || rect.y + rect.h > WORLD.height) {
+          return false;
+        }
+        return !occupiedRects.some((other) => rectOverlaps(rect, other, OBJECT_TEXTURE_GAP));
+      };
+      if (testAt(x, y)) {
+        return { x, y };
+      }
+      for (let ring = 1; ring <= maxRing; ring++) {
+        for (let gx = -ring; gx <= ring; gx++) {
+          for (let gy = -ring; gy <= ring; gy++) {
+            if (Math.max(Math.abs(gx), Math.abs(gy)) !== ring) {
+              continue;
+            }
+            const cx = x + gx * step;
+            const cy = y + gy * step;
+            if (testAt(cx, cy)) {
+              return { x: cx, y: cy };
+            }
+          }
+        }
+      }
+      return { x, y };
+    }
+
+    function pushCoreBuildingSlotsTo(rects) {
+      for (const key of ["townhall", "bank", "farm", "market"]) {
+        const b = BUILDINGS[key];
+        if (!b) {
+          continue;
+        }
+        rects.push(scaledRectAt(b.x, b.y, b.w, b.h));
+      }
+    }
+
+    function resourceRadius(kind) {
+      if (kind === "forest") {
+        return 22 * VISUAL_SCALE;
+      }
+      if (kind === "orchard") {
+        return 18 * VISUAL_SCALE;
+      }
+      return 14 * VISUAL_SCALE;
+    }
+
+    function normalizeObjectTextureSpacing() {
+      enforceCoreBuildingSpacing();
+      const occupied = [];
+      pushCoreBuildingSlotsTo(occupied);
+
+      if (state.city.construction) {
+        for (const key of ["townhall", "market", "farm"]) {
+          const p = state.city.construction[key];
+          const b = BUILDINGS[key];
+          if (!p || !b) {
+            continue;
+          }
+          p.x = b.x;
+          p.y = b.y;
+          p.w = b.w;
+          p.h = b.h;
+        }
+      }
+
+      for (const h of state.city.houses) {
+        const pos = resolveNonOverlappingPosition(h.x, h.y, h.w, h.h, occupied);
+        h.x = pos.x;
+        h.y = pos.y;
+        occupied.push(scaledRectAt(h.x, h.y, h.w, h.h));
+      }
+
+      if (state.city.construction && Array.isArray(state.city.construction.houses)) {
+        for (const p of state.city.construction.houses) {
+          if (!p) {
+            continue;
+          }
+          const pos = resolveNonOverlappingPosition(p.x, p.y, p.w, p.h, occupied);
+          p.x = pos.x;
+          p.y = pos.y;
+          occupied.push(scaledRectAt(p.x, p.y, p.w, p.h));
+        }
+      }
+
+      for (const patch of state.resources.wild) {
+        const r = resourceRadius("wild");
+        const pos = resolveNonOverlappingCenter(patch.x, patch.y, r, occupied);
+        patch.x = pos.x;
+        patch.y = pos.y;
+        occupied.push({ x: patch.x - r, y: patch.y - r, w: r * 2, h: r * 2 });
+      }
+      for (const orchard of state.resources.orchards) {
+        const r = resourceRadius("orchard");
+        const pos = resolveNonOverlappingCenter(orchard.x, orchard.y, r, occupied);
+        orchard.x = pos.x;
+        orchard.y = pos.y;
+        occupied.push({ x: orchard.x - r, y: orchard.y - r, w: r * 2, h: r * 2 });
+      }
+      for (const forest of state.resources.forests) {
+        const r = resourceRadius("forest");
+        const pos = resolveNonOverlappingCenter(forest.x, forest.y, r, occupied);
+        forest.x = pos.x;
+        forest.y = pos.y;
+        occupied.push({ x: forest.x - r, y: forest.y - r, w: r * 2, h: r * 2 });
+      }
+    }
+
+    function collectOccupiedRects() {
+      const rects = [];
+      const fixedKeys = ["bank", "townhall", "market", "farm"];
+      for (const key of fixedKeys) {
+        const b = BUILDINGS[key];
+        if (!b) {
+          continue;
+        }
+        if (key !== "bank" && !isBuildingBuilt(key)) {
+          continue;
+        }
+        rects.push(scaledRectAt(b.x, b.y, b.w, b.h));
+      }
+      for (const h of state.city.houses) {
+        rects.push(scaledRectAt(h.x, h.y, h.w, h.h));
+      }
+      if (state.city.construction) {
+        const c = state.city.construction;
+        for (const key of ["townhall", "market", "farm"]) {
+          if (c[key]) {
+            rects.push(scaledRectAt(c[key].x, c[key].y, c[key].w, c[key].h));
+          }
+        }
+        if (Array.isArray(c.houses)) {
+          for (const p of c.houses) {
+            if (p) {
+              rects.push(scaledRectAt(p.x, p.y, p.w, p.h));
+            }
+          }
+        }
+      }
+      return rects;
+    }
+
+    function enforceCoreBuildingSpacing() {
+      const keys = ["townhall", "bank", "farm", "market"];
+      const placed = [];
+      for (const key of keys) {
+        const b = BUILDINGS[key];
+        if (!b) {
+          continue;
+        }
+        if (key === "townhall") {
+          placed.push(scaledRectAt(b.x, b.y, b.w, b.h));
+          continue;
+        }
+        const pos = resolveNonOverlappingPosition(b.x, b.y, b.w, b.h, placed);
+        b.x = pos.x;
+        b.y = pos.y;
+        placed.push(scaledRectAt(b.x, b.y, b.w, b.h));
+      }
+    }
+
     function buildingRole(key) {
       if (key === "farm") return "farmer";
       if (key === "townhall") return "unemployed";
@@ -1683,18 +1875,25 @@
     }
 
     function findBuildingAt(x, y) {
+      function hitScaledRect(rx, ry, rw, rh, scale = SIMPLE_GRAPHICS ? VISUAL_SCALE : 1) {
+        const sw = rw * scale;
+        const sh = rh * scale;
+        const sx = rx + rw * 0.5 - sw * 0.5;
+        const sy = ry + rh * 0.5 - sh * 0.5;
+        return x >= sx && x <= sx + sw && y >= sy && y <= sy + sh;
+      }
       if (state.city && state.city.construction) {
         const coreKeys = ["townhall", "market", "farm"];
         for (const key of coreKeys) {
           const p = state.city.construction[key];
-          if (p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+          if (p && hitScaledRect(p.x, p.y, p.w, p.h)) {
             return `construction:${key}`;
           }
         }
         if (Array.isArray(state.city.construction.houses)) {
           for (let i = 0; i < state.city.construction.houses.length; i++) {
             const p = state.city.construction.houses[i];
-            if (p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+            if (p && hitScaledRect(p.x, p.y, p.w, p.h)) {
               return `construction:house:${i}`;
             }
           }
@@ -1702,12 +1901,12 @@
       }
       for (let i = 0; i < state.city.houses.length; i++) {
         const h = state.city.houses[i];
-        if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+        if (hitScaledRect(h.x, h.y, h.w, h.h)) {
           return `house:${i}`;
         }
       }
 
-      const order = ["market", "farm", "townhall"];
+      const order = ["bank", "market", "farm", "townhall"];
       for (const key of order) {
         const b = BUILDINGS[key];
         if (!b) {
@@ -1716,7 +1915,7 @@
         if (!isBuildingBuilt(key)) {
           continue;
         }
-        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+        if (hitScaledRect(b.x, b.y, b.w, b.h)) {
           return `building:${key}`;
         }
       }
@@ -1794,114 +1993,23 @@
     }
 
     function addRoadFootstep(x, y, amount = ROAD.addPerStep) {
-      const cell = roadCellFromPos(x, y);
-      addRoadHeatAt(cell.gx, cell.gy, amount);
+      return;
     }
 
     function decayRoadHeat(dtHours) {
-      const loss = ROAD.decayPerHour * dtHours;
-      if (loss <= 0) {
-        return;
-      }
-      for (const key of Object.keys(state.roadHeat)) {
-        const next = (Number(state.roadHeat[key]) || 0) - loss;
-        if (next <= 0.01) {
-          delete state.roadHeat[key];
-        } else {
-          state.roadHeat[key] = next;
-        }
-      }
-      for (const key of Object.keys(state.roadEdges)) {
-        const next = (Number(state.roadEdges[key]) || 0) - loss;
-        if (next <= 0.01) {
-          delete state.roadEdges[key];
-        } else {
-          state.roadEdges[key] = next;
-        }
-      }
+      return;
     }
 
     function roadCells(minHeat = ROAD.drawThreshold) {
-      const cells = [];
-      for (const [key, raw] of Object.entries(state.roadHeat)) {
-        const heat = Number(raw) || 0;
-        if (heat < minHeat) {
-          continue;
-        }
-        const parts = key.split(":");
-        const gx = Number(parts[0]);
-        const gy = Number(parts[1]);
-        if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
-          continue;
-        }
-        cells.push({
-          key,
-          gx,
-          gy,
-          heat,
-          cx: gx * ROAD.cell + ROAD.cell * 0.5,
-          cy: gy * ROAD.cell + ROAD.cell * 0.5
-        });
-      }
-      return cells;
+      return [];
     }
 
     function roadEdges(minHeat = ROAD.drawThreshold) {
-      const edges = [];
-      for (const [key, raw] of Object.entries(state.roadEdges)) {
-        const heat = Number(raw) || 0;
-        if (heat < minHeat) {
-          continue;
-        }
-        const pair = key.split("|");
-        if (pair.length !== 2) {
-          continue;
-        }
-        const a = pair[0].split(":");
-        const b = pair[1].split(":");
-        const gx1 = Number(a[0]);
-        const gy1 = Number(a[1]);
-        const gx2 = Number(b[0]);
-        const gy2 = Number(b[1]);
-        if (!Number.isFinite(gx1) || !Number.isFinite(gy1) || !Number.isFinite(gx2) || !Number.isFinite(gy2)) {
-          continue;
-        }
-        const x1 = gx1 * ROAD.cell + ROAD.cell * 0.5;
-        const y1 = gy1 * ROAD.cell + ROAD.cell * 0.5;
-        const x2 = gx2 * ROAD.cell + ROAD.cell * 0.5;
-        const y2 = gy2 * ROAD.cell + ROAD.cell * 0.5;
-        edges.push({ key, gx1, gy1, gx2, gy2, x1, y1, x2, y2, heat });
-      }
-      return edges;
+      return [];
     }
 
     function findRoadAt(x, y) {
-      let bestId = null;
-      let bestDist = Infinity;
-      for (const c of roadCells(ROAD.clickThreshold * 0.6)) {
-        const d = Math.hypot(c.cx - x, c.cy - y);
-        if (d <= ROAD.clickRadius && d < bestDist) {
-          bestDist = d;
-          bestId = `road:${c.key}`;
-        }
-      }
-      if (bestId) {
-        return bestId;
-      }
-      for (const e of roadEdges(ROAD.clickThreshold)) {
-        const vx = e.x2 - e.x1;
-        const vy = e.y2 - e.y1;
-        const lenSq = vx * vx + vy * vy || 1;
-        const t = clamp(((x - e.x1) * vx + (y - e.y1) * vy) / lenSq, 0, 1);
-        const px = e.x1 + vx * t;
-        const py = e.y1 + vy * t;
-        const d = Math.hypot(px - x, py - y);
-        if (d <= ROAD.clickRadius && d < bestDist) {
-          bestDist = d;
-          bestId = `road:${roadKey(Math.round((px - ROAD.cell * 0.5) / ROAD.cell), Math.round((py - ROAD.cell * 0.5) / ROAD.cell))}`;
-        }
-      }
-      return bestId;
+      return null;
     }
 
     function findMapObjectAt(x, y) {
@@ -1911,19 +2019,19 @@
       }
       for (let i = 0; i < state.resources.wild.length; i++) {
         const p = state.resources.wild[i];
-        if (Math.hypot(p.x - x, p.y - y) <= 46) {
+        if (Math.hypot(p.x - x, p.y - y) <= 46 * VISUAL_SCALE) {
           return `wild:${i}`;
         }
       }
       for (let i = 0; i < state.resources.orchards.length; i++) {
         const o = state.resources.orchards[i];
-        if (Math.hypot(o.x - x, o.y - y) <= 44) {
+        if (Math.hypot(o.x - x, o.y - y) <= 44 * VISUAL_SCALE) {
           return `orchard:${i}`;
         }
       }
       for (let i = 0; i < state.resources.forests.length; i++) {
         const f = state.resources.forests[i];
-        if (Math.hypot(f.x - x, f.y - y) <= 50) {
+        if (Math.hypot(f.x - x, f.y - y) <= 50 * VISUAL_SCALE) {
           return `forest:${i}`;
         }
       }
@@ -1941,9 +2049,6 @@
         if (g === "food") {
           reserve = person.hunger > 30 ? 1 : 0;
         }
-        if (g === "medkits") {
-          reserve = person.health < 55 ? 1 : 0;
-        }
         total += Math.max(0, person.inventory[g] - reserve);
       }
       return total;
@@ -1953,9 +2058,6 @@
       if (taskType === "gather_food" || taskType === "gather_herbs" || taskType === "gather_orchard_food") return "forager";
       if (taskType === "harvest_farm" || taskType === "tend_farm") return "farmer";
       if (taskType === "chop_wood") return "woodcutter";
-      if (taskType === "make_planks") return "sawmill_worker";
-      if (taskType === "make_furniture") return "carpenter";
-      if (taskType === "make_medkit") return "medic";
       return null;
     }
 
@@ -2139,28 +2241,15 @@
 
     function decideTask(person) {
       const lowHealth = person.health <= 52;
+      const criticalHealth = person.health < 30;
       const highHunger = person.hunger >= GAMEPLAY.needs.eatDecisionHunger;
-      const criticalHunger = person.hunger >= Math.max(GAMEPLAY.needs.buyFoodHunger, 62);
-      const needsUrgentCare = lowHealth || criticalHunger;
+      const criticalHunger = person.hunger > 70;
+      const criticalNeeds = criticalHunger || criticalHealth;
       const marketOpen = isBuildingBuilt("market");
       const canBuyFood = marketOpen && state.market.stocks.food > 0 && person.money >= state.market.prices.food;
-      const canBuyMedkit = marketOpen && state.market.stocks.medkits > 0 && person.money >= state.market.prices.medkits;
+      const canBuyHerbs = marketOpen && state.market.stocks.herbs > 0 && person.money >= state.market.prices.herbs;
 
-      // Priority survival loop: first meds/food, then economy/work.
-      if (lowHealth) {
-        if (person.inventory.medkits > 0) {
-          return createTask("use_medkit", null, 0.1);
-        }
-        if (canBuyMedkit) {
-          return createTask("buy_medkit", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.55);
-        }
-        const herbsPatch = nearestPatchWith("herbs");
-        if (herbsPatch && herbsPatch.patch.herbs > 0.9) {
-          return createTask("gather_herbs", { x: herbsPatch.patch.x, y: herbsPatch.patch.y }, 1.8, { patchIndex: herbsPatch.index });
-        }
-      }
-
-      if (highHunger) {
+      function foodPriorityTask() {
         if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
           return createTask("eat_food", null, 0.1);
         }
@@ -2177,11 +2266,48 @@
         if (wildFood && wildFoodUnits > 1) {
           return createTask("gather_food", { x: wildFood.patch.x, y: wildFood.patch.y }, 1.7, { patchIndex: wildFood.index });
         }
+        return null;
       }
 
-      if (needsUrgentCare && canBuyMedkit) {
-        return createTask("buy_medkit", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.55);
+      function healthPriorityTask() {
+        if (person.inventory.herbs > 0 && person.health <= 88) {
+          return createTask("use_herbs", null, 0.12);
+        }
+        if (canBuyHerbs && person.health <= 70) {
+          return createTask("buy_herbs", { x: BUILDINGS.market.x + 55, y: BUILDINGS.market.y + 42 }, 0.5);
+        }
+        const herbsPatch = nearestPatchWith("herbs");
+        if (herbsPatch && herbsPatch.patch.herbs > 0.9) {
+          return createTask("gather_herbs", { x: herbsPatch.patch.x, y: herbsPatch.patch.y }, 1.8, { patchIndex: herbsPatch.index });
+        }
+        return null;
       }
+
+      if (criticalNeeds) {
+        const urgentFood = foodPriorityTask();
+        if (urgentFood) {
+          return urgentFood;
+        }
+        const urgentHealth = healthPriorityTask();
+        if (urgentHealth) {
+          return urgentHealth;
+        }
+      }
+
+      if (lowHealth) {
+        const healthTask = healthPriorityTask();
+        if (healthTask) {
+          return healthTask;
+        }
+      }
+
+      if (highHunger) {
+        const foodTask = foodPriorityTask();
+        if (foodTask) {
+          return foodTask;
+        }
+      }
+
       if (sellableUnits(person) > 0) {
         return createTask("sell_goods", buildingTarget("market", 18, 8), 0.7);
       }
@@ -2200,30 +2326,30 @@
         return;
       }
 
-      if (task.type === "use_medkit") {
-        if (person.inventory.medkits > 0) {
-          person.inventory.medkits -= 1;
-          person.health = clamp(person.health + 36, 0, 100);
-        }
-        return;
-      }
-
       if (task.type === "buy_food") {
         if (market.stocks.food > 0 && person.money >= market.prices.food) {
           market.stocks.food -= 1;
           person.money -= market.prices.food;
-          market.treasury += market.prices.food;
+          state.bank.treasury += market.prices.food;
           person.inventory.food += 1;
         }
         return;
       }
 
-      if (task.type === "buy_medkit") {
-        if (market.stocks.medkits > 0 && person.money >= market.prices.medkits) {
-          market.stocks.medkits -= 1;
-          person.money -= market.prices.medkits;
-          market.treasury += market.prices.medkits;
-          person.inventory.medkits += 1;
+      if (task.type === "use_herbs") {
+        if (person.inventory.herbs > 0 && person.health < 100) {
+          person.inventory.herbs -= 1;
+          person.health = clamp(person.health + 28, 0, 100);
+        }
+        return;
+      }
+
+      if (task.type === "buy_herbs") {
+        if (market.stocks.herbs > 0 && person.money >= market.prices.herbs) {
+          market.stocks.herbs -= 1;
+          person.money -= market.prices.herbs;
+          state.bank.treasury += market.prices.herbs;
+          person.inventory.herbs += 1;
         }
         return;
       }
@@ -2234,8 +2360,8 @@
           if (good === "food" && person.hunger > 30) {
             reserve = 1;
           }
-          if (good === "medkits" && person.health < 55) {
-            reserve = 1;
+          if (good === "herbs" && person.health < 85) {
+            reserve = Math.max(reserve, 1);
           }
           const qty = Math.max(0, person.inventory[good] - reserve);
           if (qty <= 0) {
@@ -2243,14 +2369,12 @@
           }
           const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
           const unit = Math.max(1, Math.floor(market.prices[good] * factor));
-          const canBuyUnits = Math.floor(market.treasury / unit);
-          const sold = Math.min(qty, canBuyUnits);
+          const sold = qty;
           if (sold <= 0) {
             continue;
           }
           person.inventory[good] -= sold;
           market.stocks[good] += sold;
-          market.treasury -= sold * unit;
           person.money += sold * unit;
         }
         return;
@@ -2317,44 +2441,6 @@
         return;
       }
 
-      if (task.type === "make_planks") {
-        if (market.stocks.logs >= 2 && market.demand.planks > market.stocks.planks) {
-          market.stocks.logs -= 2;
-          const gain = Math.max(1, Math.round(roleEfficiency(person, "sawmill_worker")));
-          market.stocks.planks += gain;
-          const wage = Math.round(5 * roleEfficiency(person, "sawmill_worker"));
-          person.money += wage;
-          state.city.treasury = Math.max(0, state.city.treasury - wage);
-          addExperience(person, "sawmill_worker", 1.45);
-        }
-        return;
-      }
-
-      if (task.type === "make_furniture") {
-        if (market.stocks.planks >= 2 && market.demand.furniture > market.stocks.furniture) {
-          market.stocks.planks -= 2;
-          const gain = Math.max(1, Math.round(roleEfficiency(person, "carpenter")));
-          market.stocks.furniture += gain;
-          const wage = Math.round(8 * roleEfficiency(person, "carpenter"));
-          person.money += wage;
-          state.city.treasury = Math.max(0, state.city.treasury - wage);
-          addExperience(person, "carpenter", 1.55);
-        }
-        return;
-      }
-
-      if (task.type === "make_medkit") {
-        if (market.stocks.herbs >= 2 && market.demand.medkits > market.stocks.medkits) {
-          market.stocks.herbs -= 2;
-          const gain = Math.max(1, Math.round(roleEfficiency(person, "medic")));
-          market.stocks.medkits += gain;
-          const wage = Math.round(6 * roleEfficiency(person, "medic"));
-          person.money += wage;
-          state.city.treasury = Math.max(0, state.city.treasury - wage);
-          addExperience(person, "medic", 1.5);
-        }
-        return;
-      }
     }
 
     function updatePersonNeeds(person, dtHours) {
@@ -2440,27 +2526,17 @@
       const houses = state.city.houses.length;
       const constructionNeed = Math.max(0, Math.ceil((pop - houses * HOUSE_CAPACITY) / HOUSE_CAPACITY));
       const hungryPeople = state.people.filter((p) => p.hunger >= 60).length;
-      const weakPeople = state.people.filter((p) => p.health <= 50).length;
       const hungerPressure = pop > 0 ? hungryPeople / pop : 0;
-      const healthPressure = pop > 0 ? weakPeople / pop : 0;
       const dailyFoodNeed = Math.ceil(pop * (1.2 + hungerPressure * 1.4) + 2);
-      const dailyMedkitsNeed = Math.ceil(pop * 0.08 + weakPeople * 0.32 + healthPressure * pop * 0.22);
       state.market.dailyNeed.food = Math.max(0, dailyFoodNeed);
-      state.market.dailyNeed.medkits = Math.max(0, dailyMedkitsNeed);
 
       const foodNeed = Math.max(dailyFoodNeed, Math.ceil(pop * (GAMEPLAY.marketModel.foodPerPopBase + hungerPressure * GAMEPLAY.marketModel.foodHungerFactor) + 4));
       const logsNeed = Math.ceil(8 + constructionNeed * 8 + pop * GAMEPLAY.marketModel.logsPerPop);
-      const herbsNeed = Math.ceil(pop * GAMEPLAY.marketModel.herbsPerPop + weakPeople * 0.9 + hungryPeople * 0.2);
-      const medkitsNeed = Math.max(dailyMedkitsNeed, Math.ceil(pop * GAMEPLAY.marketModel.medkitsPerPop + weakPeople * 0.7 + healthPressure * pop * 0.45));
-      const planksNeed = Math.ceil(constructionNeed * 2 + logsNeed * GAMEPLAY.marketModel.logsPerPop);
-      const furnitureNeed = Math.ceil(houses * 0.4 + pop * 0.08);
+      const herbsNeed = Math.ceil(pop * GAMEPLAY.marketModel.herbsPerPop + hungryPeople * 0.2);
 
       state.market.demand.food = Math.max(4, foodNeed);
       state.market.demand.logs = Math.max(8, logsNeed);
-      state.market.demand.planks = Math.max(0, planksNeed);
-      state.market.demand.furniture = Math.max(0, furnitureNeed);
       state.market.demand.herbs = Math.max(0, herbsNeed);
-      state.market.demand.medkits = Math.max(0, medkitsNeed);
 
       for (const good of GOODS) {
         const basePrice = BASE_PRICES[good] || 1;
@@ -2702,7 +2778,7 @@
 
       const payLogs = Math.min(logsNeed, Math.max(1, Math.ceil(project.cost.logs * 0.2)), Math.floor(state.market.stocks.logs));
       const payFood = Math.min(foodNeed, Math.max(1, Math.ceil(project.cost.food * 0.2)), Math.floor(state.market.stocks.food));
-      const payCash = Math.min(cashNeed, Math.max(1, Math.ceil(project.cost.cash * 0.2)), Math.floor(state.city.treasury));
+      const payCash = Math.min(cashNeed, Math.max(1, Math.ceil(project.cost.cash * 0.2)), Math.floor(state.bank.treasury));
       if (payLogs > 0) {
         state.market.stocks.logs -= payLogs;
         project.paid.logs += payLogs;
@@ -2712,8 +2788,7 @@
         project.paid.food += payFood;
       }
       if (payCash > 0) {
-        state.city.treasury -= payCash;
-        state.market.treasury += Math.round(payCash * 0.5);
+        state.bank.treasury -= payCash;
         project.paid.cash += payCash;
       }
       return constructionProgress(project) >= 0.999;
@@ -2729,6 +2804,7 @@
       if (!state.city.construction[key]) {
         const b = BUILDINGS[key];
         state.city.construction[key] = createConstructionProject(key, cost, b.x, b.y, b.w, b.h, label);
+        normalizeObjectTextureSpacing();
         addEvent(`${label} construction started.`);
       }
       return state.city.construction[key];
@@ -2747,6 +2823,7 @@
       const p = nextHousePosition();
       const project = createConstructionProject("house", BUILD_COSTS.house, p.x, p.y, 64, 48, "House");
       state.city.construction.houses.push(project);
+      normalizeObjectTextureSpacing();
       addEvent("House construction started.");
       return project;
     }
@@ -2754,13 +2831,13 @@
     function nextHousePosition() {
       const idx = state.city.houses.length;
       const cols = 4;
-      const spacingX = 88;
-      const spacingY = 76;
+      const spacingX = 88 * VISUAL_SCALE;
+      const spacingY = 76 * VISUAL_SCALE;
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const hub = hubPoint();
       const cx = hub.x - ((cols - 1) * spacingX) * 0.5 + col * spacingX + rand(-8, 8);
-      const cy = hub.y + 130 + row * spacingY + rand(-8, 8);
+      const cy = hub.y + 180 * VISUAL_SCALE + row * spacingY + rand(-8, 8);
       return {
         x: Math.round(cx - 32),
         y: Math.round(cy - 24)
@@ -2811,17 +2888,7 @@
         }
       }
 
-      if (isBuildingBuilt("market")) {
-        const socialFood = Math.min(state.market.stocks.food, Math.ceil(pop * GAMEPLAY.trade.socialFoodPerPop));
-        if (socialFood > 0) {
-          state.market.stocks.food -= socialFood;
-          const spend = socialFood * state.market.prices.food;
-          if (state.city.treasury >= spend) {
-            state.city.treasury -= spend;
-            state.market.treasury += spend;
-          }
-        }
-      }
+      // Social food program removed
 
       const capacity = state.city.houses.length * HOUSE_CAPACITY;
       const freeSlots = Math.max(0, capacity - state.people.length);
@@ -2859,6 +2926,20 @@
       }
 
       state.day += 1;
+      if (state.day % 30 === 0) {
+        let taxes = 0;
+        for (const person of state.people) {
+          const tax = Math.max(0, Math.floor((Number(person.money) || 0) * 0.10));
+          if (tax > 0) {
+            person.money -= tax;
+            taxes += tax;
+          }
+        }
+        if (taxes > 0) {
+          state.bank.treasury += taxes;
+          addEvent(`Monthly taxes collected: $${taxes}.`);
+        }
+      }
     }
 
     function processHourTick(hourAbsolute) {
@@ -2873,7 +2954,7 @@
         const sold = Math.min(exportable, GAMEPLAY.trade.exportLogBatch);
         if (sold > 0) {
           state.market.stocks.logs -= sold;
-          state.market.treasury += sold * state.market.prices.logs;
+          state.bank.treasury += sold * state.market.prices.logs;
         }
       }
 
@@ -2881,7 +2962,7 @@
     }
 
     function updateSimulation(realDtSec) {
-      const gameHours = realDtSec * 0.7 * state.speed;
+      const gameHours = realDtSec * state.speed;
       const prevAbs = state.absHours;
       state.absHours += gameHours;
 
@@ -2899,7 +2980,6 @@
     }
 
     function roleLabel(role) {
-      if (role === "sawmill_worker") return "Sawmill worker";
       return String(role || "unemployed").replaceAll("_", " ");
     }
 
@@ -2910,23 +2990,27 @@
 
     function updateUI() {
       const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
-      const totalWorldMoney = Math.round((Number(state.city.treasury) || 0) + (Number(state.market.treasury) || 0) + peopleCash);
+      const totalWorldMoney = Math.round((Number(state.bank.treasury) || 0) + peopleCash);
       ui.popStat.textContent = String(state.people.length);
       ui.stageStat.textContent = state.city.stage;
       ui.dayStat.textContent = String(state.day);
-      ui.marketCashStat.textContent = `$${Math.round(state.market.treasury)}`;
+      ui.marketCashStat.textContent = `$${Math.round(state.bank.treasury)}`;
       ui.worldMoneyStat.textContent = `$${totalWorldMoney}`;
 
       const hh = formatHour(currentHour());
+      const calendarDay = Math.max(1, state.day);
+      const month = Math.floor((calendarDay - 1) / 30) % 12 + 1;
+      const year = Math.floor((calendarDay - 1) / 360) + 1;
+      const dayOfMonth = ((calendarDay - 1) % 30) + 1;
       const stocks = state.market.stocks;
       const forestLeft = state.resources.forests.reduce((sum, f) => sum + f.wood, 0);
       const orchardFood = state.resources.orchards.reduce((sum, o) => sum + o.food, 0);
       const wildFood = state.resources.wild.reduce((sum, p) => sum + p.food, 0);
       const wildHerbs = state.resources.wild.reduce((sum, p) => sum + p.herbs, 0);
       ui.overlayText.innerHTML = `
-        <div><b>Day ${state.day}</b> ${hh} | Population: ${state.people.length}</div>
-        <div>Stage: <b>${state.city.stage}</b> | City cash: $${Math.round(state.city.treasury)}</div>
-        <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b>, medkits <b>${Math.round(state.market.dailyNeed.medkits || 0)}</b></div>
+        <div><b>Y${year} M${month} D${dayOfMonth}</b> ${hh} | Population: ${state.people.length}</div>
+        <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)}</div>
+        <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>
         <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
 
@@ -2944,9 +3028,15 @@
 
       const selected = getPerson(state.selectedId);
       if (!selected) {
+        const balances = state.people
+          .slice(0, 14)
+          .map((p) => `<div class="mini">${p.name}: $${Math.round(p.money || 0)}</div>`)
+          .join("");
         ui.personCard.innerHTML = `
           <h2>No person selected</h2>
           <div class="mini">Click any person on the map to inspect stats and needs.</div>
+          <div class="mini"><b>Balances:</b></div>
+          ${balances || `<div class="mini">No people</div>`}
         `;
       } else {
         ui.personCard.innerHTML = `
@@ -2963,8 +3053,7 @@
           ${meterHtml("Hunger", selected.hunger, "#b58b33")}
 
           <div class="mini"><b>Inventory:</b></div>
-          <div class="mini">Food ${selected.inventory.food} | Logs ${selected.inventory.logs} | Planks ${selected.inventory.planks}</div>
-          <div class="mini">Furniture ${selected.inventory.furniture} | Herbs ${selected.inventory.herbs} | Medkits ${selected.inventory.medkits}</div>
+          <div class="mini">Food ${selected.inventory.food} | Logs ${selected.inventory.logs} | Herbs ${selected.inventory.herbs}</div>
         `;
       }
 
@@ -3021,13 +3110,12 @@
       } else {
         ui.resourceList.innerHTML = [
           `<div>Population: <b>${state.people.length}</b></div>`,
-          `<div>City treasury: <b>$${Math.round(state.city.treasury)}</b></div>`,
-          `<div>Market treasury: <b>$${Math.round(state.market.treasury)}</b></div>`,
+          `<div>Bank treasury: <b>$${Math.round(state.bank.treasury)}</b></div>`,
           `<div>Daily food need: <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>`,
-          `<div>Daily medkits need: <b>${Math.round(state.market.dailyNeed.medkits || 0)}</b></div>`,
           `<div>Market food stock: <b>${stocks.food.toFixed(0)}</b></div>`,
           `<div>Market herbs stock: <b>${stocks.herbs.toFixed(0)}</b></div>`,
-          `<div>Houses: <b>${state.city.houses.length}</b></div>`
+          `<div>Houses: <b>${state.city.houses.length}</b></div>`,
+          ...state.people.slice(0, 14).map((p) => `<div>${p.name}: <b>$${Math.round(p.money || 0)}</b></div>`)
         ].join("");
       }
     }
@@ -3093,28 +3181,7 @@
           `;
           return;
         }
-        if (selectedObject.startsWith("road:")) {
-          const key = selectedObject.slice("road:".length);
-          const raw = Number(state.roadHeat[key]) || 0;
-          const parts = key.split(":");
-          const gx = Number(parts[0]);
-          const gy = Number(parts[1]);
-          if (!Number.isFinite(gx) || !Number.isFinite(gy)) {
-            state.selectedObject = null;
-            return;
-          }
-          const cx = gx * ROAD.cell + ROAD.cell * 0.5;
-          const cy = gy * ROAD.cell + ROAD.cell * 0.5;
-          const totalRoadTiles = roadCells(ROAD.drawThreshold).length;
-          ui.buildingCard.innerHTML = `
-            <h2>Path Segment</h2>
-            <div class="mini"><b>What is it:</b> Emergent road created by repeated walking.</div>
-            <div class="mini"><b>Traffic intensity:</b> ${raw.toFixed(1)} / ${ROAD.maxHeat}</div>
-            <div class="mini"><b>Total road tiles:</b> ${totalRoadTiles}</div>
-            <div class="mini"><b>Coords:</b> ${Math.round(cx)}, ${Math.round(cy)}</div>
-          `;
-          return;
-        }
+        
       }
 
       if (!selected) {
@@ -3194,13 +3261,23 @@
       const workerNames = workers.slice(0, 4).map((p) => p.name).join(", ");
 
       if (key === "market") {
-        const tradingNow = workersBusyAt(["buy_food", "buy_medkit", "sell_goods"]);
+        const tradingNow = workersBusyAt(["buy_food", "sell_goods"]);
         ui.buildingCard.innerHTML = `
           <h2>Market</h2>
-          <div class="mini"><b>Treasury:</b> $${Math.round(state.market.treasury)}</div>
+          <div class="mini"><b>Treasury:</b> n/a (all money goes to bank)</div>
           <div class="mini"><b>Food stock:</b> ${state.market.stocks.food.toFixed(0)} | demand ${state.market.demand.food.toFixed(0)}</div>
           <div class="mini"><b>Herbs stock:</b> ${state.market.stocks.herbs.toFixed(0)} | demand ${state.market.demand.herbs.toFixed(0)}</div>
           <div class="mini"><b>Active traders right now:</b> ${tradingNow}</div>
+        `;
+        return;
+      }
+
+      if (key === "bank") {
+        ui.buildingCard.innerHTML = `
+          <h2>Bank</h2>
+          <div class="mini"><b>State funds:</b> $${Math.round(state.bank.treasury)}</div>
+          <div class="mini"><b>Rule:</b> all institutional money is stored here.</div>
+          <div class="mini"><b>Tax:</b> 10% monthly from each person.</div>
         `;
         return;
       }
@@ -3222,7 +3299,7 @@
         const unemployed = state.people.filter((p) => p.role === "unemployed").length;
         ui.buildingCard.innerHTML = `
           <h2>Town Hall</h2>
-          <div class="mini"><b>City treasury:</b> $${Math.round(state.city.treasury)}</div>
+          <div class="mini"><b>City treasury:</b> n/a (money stored in bank)</div>
           <div class="mini"><b>City stage:</b> ${state.city.stage}</div>
           <div class="mini"><b>Unemployed:</b> ${unemployed}</div>
           <div class="mini"><b>Houses:</b> ${state.city.houses.length}</div>
@@ -3428,8 +3505,6 @@
       pushDecorSprite(list, "market", market.x + market.w - 18, market.y + market.h - 18, 20, 20);
       pushDecorSprite(list, "iconFarm", farm.x + farm.w + 24, farm.y + 14, 26, 26);
       pushDecorSprite(list, "iconTownhall", town.x + town.w + 22, town.y + 4, 32, 32);
-      pushDecorSprite(list, "iconWorkshop", market.x - 42, market.y + market.h - 10, 30, 30);
-      pushDecorSprite(list, "iconClinic", farm.x - 52, farm.y + farm.h - 24, 30, 30);
       pushDecorSprite(list, "iconMarket", market.x + 14, market.y - 30, 24, 24);
 
       // Decorative trees and critters across map.
@@ -3441,14 +3516,8 @@
         if (nearVillage) {
           continue;
         }
-        const useLarge = seedUnit(seed + 5.1) > 0.42;
-        if (useLarge) {
-          const s = 0.7 + seedUnit(seed + 3.6) * 0.5;
-          pushDecorSprite(list, "forest", x - 22 * s, y - 54 * s, 44 * s, 56 * s);
-        } else {
-          const s = 0.85 + seedUnit(seed + 8.7) * 0.4;
-          pushDecorSprite(list, "sawmill", x - 34 * s, y - 19 * s, 68 * s, 34 * s);
-        }
+        const s = 0.7 + seedUnit(seed + 3.6) * 0.5;
+        pushDecorSprite(list, "forest", x - 22 * s, y - 54 * s, 44 * s, 56 * s);
       }
 
       for (let i = 0; i < 34; i++) {
@@ -3458,11 +3527,7 @@
         const x = cx + Math.cos(angle) * radius;
         const y = cy + Math.sin(angle) * radius;
         const pickAnimal = seedUnit(seed + 2.6);
-        const spriteKey = pickAnimal < 0.25
-          ? "iconTownhall"
-          : (pickAnimal < 0.5
-            ? "iconWorkshop"
-            : (pickAnimal < 0.75 ? "iconClinic" : "wild"));
+        const spriteKey = pickAnimal < 0.33 ? "iconTownhall" : (pickAnimal < 0.66 ? "wild" : "wild");
         const size = 24 + seedUnit(seed + 4.1) * 12;
         pushDecorSprite(list, spriteKey, x - size * 0.5, y - size * 0.65, size, size);
       }
@@ -3658,8 +3723,9 @@
 
     function drawSelectionMarker(x, y, size = 18) {
       if (SIMPLE_GRAPHICS) {
+        const s = size * VISUAL_SCALE;
         ctx.beginPath();
-        ctx.arc(x, y - size * 0.25, size * 0.38, 0, Math.PI * 2);
+        ctx.arc(x, y - s * 0.25, s * 0.38, 0, Math.PI * 2);
         ctx.strokeStyle = "#ffe08a";
         ctx.lineWidth = 2;
         ctx.stroke();
@@ -3792,21 +3858,25 @@
 
     function drawBuilding(b, fill, stroke, label, locked = false, sprite = null, selected = false, icon = null) {
       if (SIMPLE_GRAPHICS) {
+        const sw = b.w * VISUAL_SCALE;
+        const sh = b.h * VISUAL_SCALE;
+        const sx = b.x + b.w * 0.5 - sw * 0.5;
+        const sy = b.y + b.h * 0.5 - sh * 0.5;
         ctx.fillStyle = fill;
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 2;
-        ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        ctx.fillRect(sx, sy, sw, sh);
+        ctx.strokeRect(sx, sy, sw, sh);
         ctx.fillStyle = "#f3f4dc";
         ctx.font = "10px Trebuchet MS";
         ctx.textAlign = "center";
-        ctx.fillText(label, b.x + b.w * 0.5, b.y + b.h * 0.58);
+        ctx.fillText(label, sx + sw * 0.5, sy + sh * 0.58);
         if (selected) {
-          drawSelectionMarker(b.x + b.w * 0.5, b.y - 4, 20);
+          drawSelectionMarker(sx + sw * 0.5, sy - 4, 20);
         }
         if (locked) {
           ctx.fillStyle = "rgba(20,20,20,0.2)";
-          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.fillRect(sx, sy, sw, sh);
         }
         return;
       }
@@ -3835,90 +3905,30 @@
         return;
       }
       const progress = constructionProgress(project);
+      const sw = project.w * VISUAL_SCALE;
+      const sh = project.h * VISUAL_SCALE;
+      const sx = project.x + project.w * 0.5 - sw * 0.5;
+      const sy = project.y + project.h * 0.5 - sh * 0.5;
       ctx.fillStyle = "rgba(244, 236, 200, 0.10)";
-      ctx.fillRect(project.x, project.y, project.w, project.h);
+      ctx.fillRect(sx, sy, sw, sh);
       ctx.strokeStyle = "rgba(95, 79, 52, 0.8)";
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(project.x, project.y, project.w, project.h);
+      ctx.strokeRect(sx, sy, sw, sh);
 
       ctx.fillStyle = "rgba(108, 190, 120, 0.55)";
-      ctx.fillRect(project.x, project.y, project.w * progress, project.h);
+      ctx.fillRect(sx, sy, sw * progress, sh);
 
       ctx.fillStyle = "#f3f4dc";
       ctx.font = "10px Trebuchet MS";
       ctx.textAlign = "center";
-      ctx.fillText(`${project.label} ${Math.round(progress * 100)}%`, project.x + project.w * 0.5, project.y + project.h * 0.55);
+      ctx.fillText(`${project.label} ${Math.round(progress * 100)}%`, sx + sw * 0.5, sy + sh * 0.55);
       if (selected) {
-        drawSelectionMarker(project.x + project.w * 0.5, project.y - 4, 18);
+        drawSelectionMarker(sx + sw * 0.5, sy - 4, 18);
       }
     }
 
     function drawRoadNetwork() {
-      const edges = roadEdges(ROAD.drawThreshold);
-      const cells = roadCells(ROAD.drawThreshold * 0.86);
-      if (cells.length === 0 && edges.length === 0) {
-        return;
-      }
-
-      const hasRoadSheet = !SIMPLE_GRAPHICS && imageReady(sprites.roadSheet);
-      const fallbackTile = SIMPLE_GRAPHICS ? null : (imageReady(sprites.pathTile) ? sprites.pathTile : null);
-      if (!hasRoadSheet && !fallbackTile) {
-        ctx.strokeStyle = "rgba(219, 199, 146, 0.48)";
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        for (const e of edges) {
-          const normalized = clamp(e.heat / ROAD.maxEdgeHeat, 0, 1);
-          ctx.lineWidth = 9 + normalized * 10;
-          ctx.beginPath();
-          ctx.moveTo(e.x1, e.y1);
-          ctx.lineTo(e.x2, e.y2);
-          ctx.stroke();
-        }
-        return;
-      }
-
-      for (const e of edges) {
-        const length = Math.hypot(e.x2 - e.x1, e.y2 - e.y1);
-        const normalized = clamp(e.heat / ROAD.maxEdgeHeat, 0, 1);
-        const size = 14 + normalized * 8;
-        const dx = e.gx2 - e.gx1;
-        const dy = e.gy2 - e.gy1;
-        const isDiag = Math.abs(dx) === 1 && Math.abs(dy) === 1;
-        const isVertical = dx === 0 && dy !== 0;
-        const roadTile = isDiag
-          ? (dx * dy > 0 ? TILESET.road.diagonalA : TILESET.road.diagonalB)
-          : (isVertical ? TILESET.road.vertical : TILESET.road.horizontal);
-        const steps = Math.max(1, Math.floor(length / (size * 0.95)));
-        for (let i = 0; i <= steps; i++) {
-          const t = i / steps;
-          const cx = e.x1 + (e.x2 - e.x1) * t;
-          const cy = e.y1 + (e.y2 - e.y1) * t;
-          if (hasRoadSheet) {
-            drawTile(sprites.roadSheet, roadTile.x, roadTile.y, cx - size * 0.5, cy - size * 0.5, size, size, TILESET.size);
-          } else {
-            drawImageCover(fallbackTile, cx - size * 0.5, cy - size * 0.5, size, size);
-          }
-        }
-      }
-
-      for (const c of cells) {
-        const normalized = clamp(c.heat / ROAD.maxHeat, 0, 1);
-        const size = 12 + normalized * 8;
-        if (hasRoadSheet) {
-          const hasLeft = Number(state.roadHeat[roadKey(c.gx - 1, c.gy)]) >= ROAD.drawThreshold;
-          const hasRight = Number(state.roadHeat[roadKey(c.gx + 1, c.gy)]) >= ROAD.drawThreshold;
-          const hasUp = Number(state.roadHeat[roadKey(c.gx, c.gy - 1)]) >= ROAD.drawThreshold;
-          const hasDown = Number(state.roadHeat[roadKey(c.gx, c.gy + 1)]) >= ROAD.drawThreshold;
-          const degree = (hasLeft ? 1 : 0) + (hasRight ? 1 : 0) + (hasUp ? 1 : 0) + (hasDown ? 1 : 0);
-          const tile = degree >= 3 ? TILESET.road.junction : TILESET.road.hotspot;
-          drawTile(sprites.roadSheet, tile.x, tile.y, c.cx - size * 0.5, c.cy - size * 0.5, size, size, TILESET.size);
-        } else {
-          drawImageCover(fallbackTile, c.cx - size * 0.5, c.cy - size * 0.5, size, size);
-        }
-        if (isSelectedObject(`road:${c.key}`)) {
-          drawSelectionMarker(c.cx, c.cy - 2, 16);
-        }
-      }
+      return;
     }
 
     function fillZoneCircle(x, y, r, fill, stroke) {
@@ -3987,21 +3997,25 @@
       if (SIMPLE_GRAPHICS) {
         for (let i = 0; i < state.city.houses.length; i++) {
           const h = state.city.houses[i];
+          const sw = h.w * VISUAL_SCALE;
+          const sh = h.h * VISUAL_SCALE;
+          const sx = h.x + h.w * 0.5 - sw * 0.5;
+          const sy = h.y + h.h * 0.5 - sh * 0.5;
           ctx.fillStyle = "#cab28a";
           ctx.strokeStyle = "#6f5a3b";
           ctx.lineWidth = 2;
-          ctx.fillRect(h.x, h.y, h.w, h.h);
-          ctx.strokeRect(h.x, h.y, h.w, h.h);
+          ctx.fillRect(sx, sy, sw, sh);
+          ctx.strokeRect(sx, sy, sw, sh);
           ctx.fillStyle = "#8d734d";
-          ctx.fillRect(h.x + h.w * 0.34, h.y + h.h * 0.58, h.w * 0.32, h.h * 0.42);
+          ctx.fillRect(sx + sw * 0.34, sy + sh * 0.58, sw * 0.32, sh * 0.42);
           if (isSelectedBuilding(`house:${i}`)) {
-            drawSelectionMarker(h.x + h.w * 0.5, h.y - 8, 20);
+            drawSelectionMarker(sx + sw * 0.5, sy - 8, 20);
           }
         }
 
         for (let i = 0; i < state.resources.wild.length; i++) {
           const patch = state.resources.wild[i];
-          fillZoneCircle(patch.x, patch.y, 14, "rgba(230, 198, 113, 0.55)", "rgba(115, 90, 46, 0.9)");
+          fillZoneCircle(patch.x, patch.y, 14 * VISUAL_SCALE, "rgba(230, 198, 113, 0.55)", "rgba(115, 90, 46, 0.9)");
           ctx.fillStyle = "#1f2d1f";
           ctx.font = "9px Trebuchet MS";
           ctx.textAlign = "center";
@@ -4013,7 +4027,7 @@
 
         for (let i = 0; i < state.resources.orchards.length; i++) {
           const orchard = state.resources.orchards[i];
-          fillZoneCircle(orchard.x, orchard.y, 18, "rgba(117, 197, 111, 0.5)", "rgba(37, 98, 47, 0.9)");
+          fillZoneCircle(orchard.x, orchard.y, 18 * VISUAL_SCALE, "rgba(117, 197, 111, 0.5)", "rgba(37, 98, 47, 0.9)");
           ctx.fillStyle = "#143418";
           ctx.font = "9px Trebuchet MS";
           ctx.textAlign = "center";
@@ -4025,7 +4039,7 @@
 
         for (let i = 0; i < state.resources.forests.length; i++) {
           const f = state.resources.forests[i];
-          fillZoneCircle(f.x, f.y, 22, "rgba(56, 119, 70, 0.55)", "rgba(28, 64, 37, 0.95)");
+          fillZoneCircle(f.x, f.y, 22 * VISUAL_SCALE, "rgba(56, 119, 70, 0.55)", "rgba(28, 64, 37, 0.95)");
           ctx.fillStyle = "#e9f0dc";
           ctx.font = "9px Trebuchet MS";
           ctx.textAlign = "center";
@@ -4046,6 +4060,9 @@
           }
         }
 
+        if (isBuildingBuilt("bank")) {
+          drawBuilding(BUILDINGS.bank, "#d4c36f", "#786933", "Bank", false, null, isSelectedBuilding("building:bank"), null);
+        }
         if (isBuildingBuilt("market")) {
           drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, null, isSelectedBuilding("building:market"), null);
         }
@@ -4129,6 +4146,9 @@
       if (isBuildingBuilt("market")) {
         drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, generatedBuildingSprites.market || sprites.house, isSelectedBuilding("building:market"), sprites.iconMarket);
       }
+      if (isBuildingBuilt("bank")) {
+        drawBuilding(BUILDINGS.bank, "#d4c36f", "#786933", "Bank", false, generatedBuildingSprites.market || sprites.house, isSelectedBuilding("building:bank"), sprites.iconMarket);
+      }
       if (isBuildingBuilt("farm")) {
         drawBuilding(BUILDINGS.farm, "#73954f", "#405529", "Farm", false, generatedBuildingSprites.farm || sprites.house, isSelectedBuilding("building:farm"), sprites.iconFarm);
       }
@@ -4156,7 +4176,7 @@
         }
         const cx = person.x;
         const cy = person.y - 4;
-        const radius = SIMPLE_GRAPHICS ? 10 : 13;
+        const radius = SIMPLE_GRAPHICS ? 10 * VISUAL_SCALE : 13;
         ctx.beginPath();
         ctx.arc(cx, cy, radius, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * progress);
         ctx.strokeStyle = "#ffe08a";
@@ -4169,19 +4189,21 @@
           const roleColor = person.role === "farmer"
             ? "#d9bf73"
             : (person.role === "woodcutter" ? "#7ea6d8" : "#9dd88a");
+          const bodyR = 7 * VISUAL_SCALE;
+          const offsetY = 4 * VISUAL_SCALE;
           ctx.fillStyle = roleColor;
           ctx.strokeStyle = "#1f1f1f";
           ctx.lineWidth = 1.4;
           ctx.beginPath();
-          ctx.arc(person.x, person.y - 4, 7, 0, Math.PI * 2);
+          ctx.arc(person.x, person.y - offsetY, bodyR, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           const dir = normalizeFacing(person.facing);
-          const dx = dir === "left" ? -5 : (dir === "right" ? 5 : 0);
-          const dy = dir === "up" ? -5 : (dir === "down" ? 5 : 0);
+          const dx = dir === "left" ? -5 * VISUAL_SCALE : (dir === "right" ? 5 * VISUAL_SCALE : 0);
+          const dy = dir === "up" ? -5 * VISUAL_SCALE : (dir === "down" ? 5 * VISUAL_SCALE : 0);
           ctx.beginPath();
-          ctx.moveTo(person.x, person.y - 4);
-          ctx.lineTo(person.x + dx, person.y - 4 + dy);
+          ctx.moveTo(person.x, person.y - offsetY);
+          ctx.lineTo(person.x + dx, person.y - offsetY + dy);
           ctx.strokeStyle = "#202020";
           ctx.lineWidth = 1.3;
           ctx.stroke();
@@ -4321,7 +4343,8 @@
       resizeCanvas();
       const restored = await loadFromStorage(false);
       if (!restored) {
-        initPopulation(8);
+        normalizeObjectTextureSpacing();
+        initPopulation(4);
         computeDemandAndPrices();
         addEvent("Simulation started.");
         saveToStorage(false);
