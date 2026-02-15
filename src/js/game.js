@@ -16,7 +16,8 @@
       ZOOM,
       PAN,
       CAMERA,
-      ASSETS
+      ASSETS,
+      ROLE_COLORS
     } = Config;
 
     const canvas = document.getElementById("world");
@@ -33,13 +34,8 @@
       speed1Btn: document.getElementById("speed1Btn"),
       speed3Btn: document.getElementById("speed3Btn"),
       speed6Btn: document.getElementById("speed6Btn"),
-      zoomOutBtn: document.getElementById("zoomOutBtn"),
-      zoomResetBtn: document.getElementById("zoomResetBtn"),
-      zoomInBtn: document.getElementById("zoomInBtn"),
-      zoomStat: document.getElementById("zoomStat"),
       toolsMenuBtn: document.getElementById("toolsMenuBtn"),
       worldSettingsBtn: document.getElementById("worldSettingsBtn"),
-      toggleResourcesBtn: document.getElementById("toggleResourcesBtn"),
       toolsPanel: document.getElementById("toolsPanel"),
       resourceMapBtn: document.getElementById("resourceMapBtn"),
       resourceWorldBtn: document.getElementById("resourceWorldBtn"),
@@ -137,6 +133,10 @@
       KeyS: false,
       KeyD: false
     };
+    const HERO_TARGET_COUNT = 4;
+    const CHALLENGE_YEARS = 5;
+    const DAYS_PER_YEAR = 360;
+    const CHALLENGE_TOTAL_DAYS = CHALLENGE_YEARS * DAYS_PER_YEAR;
     let LIFE_SPAN_DAYS = 360;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const SIMPLE_GRAPHICS = true;
@@ -200,10 +200,10 @@
         maxChangeRatio: 0.22
       },
       births: {
-        baseChance: 0.05,
-        perAdultBonus: 0.008,
-        maxChance: 0.42,
-        maxPerDay: 2
+        baseChance: 0,
+        perAdultBonus: 0,
+        maxChance: 0,
+        maxPerDay: 0
       }
     };
     const SHEET_ANIMS = Object.freeze({
@@ -248,14 +248,54 @@
       return profile;
     }
 
+    function createChallengeState(startDay = 1) {
+      const safeStart = Math.max(1, Math.floor(Number(startDay) || 1));
+      return {
+        startDay: safeStart,
+        totalDays: CHALLENGE_TOTAL_DAYS,
+        targetYears: CHALLENGE_YEARS,
+        finished: false,
+        finishedDay: null,
+        finalMoney: 0,
+        bestMoney: 0
+      };
+    }
+
     function createInitialState(randomized) {
       const resourceScale = randomized ? rand(0.72, 1.35) : 1;
       const moneyScale = randomized ? rand(0.65, 1.45) : 1;
+      const randomPoint = (baseX, baseY, spreadX, spreadY) => {
+        if (!randomized) {
+          return { x: baseX, y: baseY };
+        }
+        return {
+          x: clamp(baseX + rand(-spreadX, spreadX), 120, WORLD.width - 120),
+          y: clamp(baseY + rand(-spreadY, spreadY), 120, WORLD.height - 120)
+        };
+      };
+      const forestPoints = [
+        randomPoint(2200, 430, 340, 220),
+        randomPoint(2440, 560, 280, 220),
+        randomPoint(2060, 350, 320, 200),
+        randomPoint(2320, 760, 300, 260)
+      ];
+      const orchardPoints = [
+        randomPoint(690, 1040, 260, 240),
+        randomPoint(860, 1220, 250, 260),
+        randomPoint(1020, 980, 280, 250)
+      ];
+      const wildPoints = [
+        randomPoint(420, 560, 280, 260),
+        randomPoint(620, 450, 280, 250),
+        randomPoint(320, 760, 260, 240),
+        randomPoint(890, 620, 300, 260)
+      ];
       return {
         paused: false,
         speed: 1,
         absHours: 0,
         day: 1,
+        challenge: createChallengeState(1),
         selectedId: null,
         selectedBuilding: null,
         selectedObject: null,
@@ -305,21 +345,21 @@
         },
         resources: {
           forests: [
-            { x: 2200, y: 430, wood: Math.round(170 * resourceScale), maxWood: Math.round(170 * resourceScale) },
-            { x: 2440, y: 560, wood: Math.round(130 * resourceScale), maxWood: Math.round(130 * resourceScale) },
-            { x: 2060, y: 350, wood: Math.round(95 * resourceScale), maxWood: Math.round(95 * resourceScale) },
-            { x: 2320, y: 760, wood: Math.round(150 * resourceScale), maxWood: Math.round(150 * resourceScale) }
+            { x: forestPoints[0].x, y: forestPoints[0].y, wood: Math.round(170 * resourceScale), maxWood: Math.round(170 * resourceScale) },
+            { x: forestPoints[1].x, y: forestPoints[1].y, wood: Math.round(130 * resourceScale), maxWood: Math.round(130 * resourceScale) },
+            { x: forestPoints[2].x, y: forestPoints[2].y, wood: Math.round(95 * resourceScale), maxWood: Math.round(95 * resourceScale) },
+            { x: forestPoints[3].x, y: forestPoints[3].y, wood: Math.round(150 * resourceScale), maxWood: Math.round(150 * resourceScale) }
           ],
           orchards: [
-            { x: 690, y: 1040, food: Math.round(120 * resourceScale), maxFood: Math.round(120 * resourceScale) },
-            { x: 860, y: 1220, food: Math.round(95 * resourceScale), maxFood: Math.round(95 * resourceScale) },
-            { x: 1020, y: 980, food: Math.round(110 * resourceScale), maxFood: Math.round(110 * resourceScale) }
+            { x: orchardPoints[0].x, y: orchardPoints[0].y, food: Math.round(120 * resourceScale), maxFood: Math.round(120 * resourceScale) },
+            { x: orchardPoints[1].x, y: orchardPoints[1].y, food: Math.round(95 * resourceScale), maxFood: Math.round(95 * resourceScale) },
+            { x: orchardPoints[2].x, y: orchardPoints[2].y, food: Math.round(110 * resourceScale), maxFood: Math.round(110 * resourceScale) }
           ],
           wild: [
-            { x: 420, y: 560, food: Math.round(90 * resourceScale), herbs: Math.round(55 * resourceScale), maxFood: Math.round(90 * resourceScale), maxHerbs: Math.round(55 * resourceScale) },
-            { x: 620, y: 450, food: Math.round(70 * resourceScale), herbs: Math.round(45 * resourceScale), maxFood: Math.round(70 * resourceScale), maxHerbs: Math.round(45 * resourceScale) },
-            { x: 320, y: 760, food: Math.round(85 * resourceScale), herbs: Math.round(35 * resourceScale), maxFood: Math.round(85 * resourceScale), maxHerbs: Math.round(35 * resourceScale) },
-            { x: 890, y: 620, food: Math.round(100 * resourceScale), herbs: Math.round(48 * resourceScale), maxFood: Math.round(100 * resourceScale), maxHerbs: Math.round(48 * resourceScale) }
+            { x: wildPoints[0].x, y: wildPoints[0].y, food: Math.round(90 * resourceScale), herbs: Math.round(55 * resourceScale), maxFood: Math.round(90 * resourceScale), maxHerbs: Math.round(55 * resourceScale) },
+            { x: wildPoints[1].x, y: wildPoints[1].y, food: Math.round(70 * resourceScale), herbs: Math.round(45 * resourceScale), maxFood: Math.round(70 * resourceScale), maxHerbs: Math.round(45 * resourceScale) },
+            { x: wildPoints[2].x, y: wildPoints[2].y, food: Math.round(85 * resourceScale), herbs: Math.round(35 * resourceScale), maxFood: Math.round(85 * resourceScale), maxHerbs: Math.round(35 * resourceScale) },
+            { x: wildPoints[3].x, y: wildPoints[3].y, food: Math.round(100 * resourceScale), herbs: Math.round(48 * resourceScale), maxFood: Math.round(100 * resourceScale), maxHerbs: Math.round(48 * resourceScale) }
           ],
           farm: {
             crop: Math.round(45 * resourceScale),
@@ -368,10 +408,10 @@
             maxChangeRatio: 0.22
           },
           births: {
-            baseChance: 0.05,
-            perAdultBonus: 0.008,
-            maxChance: 0.42,
-            maxPerDay: 2
+            baseChance: 0,
+            perAdultBonus: 0,
+            maxChance: 0,
+            maxPerDay: 0
           }
         },
         road: {
@@ -751,6 +791,62 @@
       return state.absHours % 24;
     }
 
+    function totalMoneyScore() {
+      const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
+      return Math.max(0, (Number(state.bank.treasury) || 0) + peopleCash);
+    }
+
+    function moneyChallengeState() {
+      if (!state.challenge || typeof state.challenge !== "object") {
+        state.challenge = createChallengeState(state.day);
+      }
+      return state.challenge;
+    }
+
+    function challengeElapsedDays() {
+      const challenge = moneyChallengeState();
+      return Math.max(0, Math.floor(state.day - challenge.startDay));
+    }
+
+    function challengeDaysLeft() {
+      const challenge = moneyChallengeState();
+      return Math.max(0, challenge.totalDays - challengeElapsedDays());
+    }
+
+    function challengeProgressRatio() {
+      const challenge = moneyChallengeState();
+      return clamp(challengeElapsedDays() / Math.max(1, challenge.totalDays), 0, 1);
+    }
+
+    function trackChallengeMoneyPeak() {
+      const challenge = moneyChallengeState();
+      const current = Math.round(totalMoneyScore());
+      challenge.bestMoney = Math.max(Number(challenge.bestMoney) || 0, current);
+    }
+
+    function completeMoneyChallenge() {
+      const challenge = moneyChallengeState();
+      if (challenge.finished) {
+        return;
+      }
+      trackChallengeMoneyPeak();
+      challenge.finished = true;
+      challenge.finishedDay = Math.max(1, Math.floor(state.day));
+      challenge.finalMoney = Math.round(totalMoneyScore());
+      challenge.bestMoney = Math.max(Number(challenge.bestMoney) || 0, challenge.finalMoney);
+      state.paused = true;
+      addEvent(`5-year challenge complete. Final money: $${challenge.finalMoney}. Peak money: $${challenge.bestMoney}.`);
+      syncUiToggles();
+    }
+
+    function updateMoneyChallengeProgress() {
+      const challenge = moneyChallengeState();
+      trackChallengeMoneyPeak();
+      if (!challenge.finished && challengeElapsedDays() >= challenge.totalDays) {
+        completeMoneyChallenge();
+      }
+    }
+
     function formatHour(h) {
       const hh = Math.floor(h);
       const mm = Math.floor((h - hh) * 60);
@@ -893,10 +989,32 @@
       if (!Number.isFinite(state.day) || state.day < 1) {
         state.day = 1;
       }
+      const incomingChallenge = incoming.challenge && typeof incoming.challenge === "object" ? incoming.challenge : {};
+      const challengeStartDay = Number.isFinite(incomingChallenge.startDay)
+        ? Math.max(1, Math.floor(incomingChallenge.startDay))
+        : Math.max(1, Math.floor(state.day));
+      const challengeTotalDays = Number.isFinite(incomingChallenge.totalDays)
+        ? Math.max(30, Math.floor(incomingChallenge.totalDays))
+        : CHALLENGE_TOTAL_DAYS;
+      state.challenge = {
+        ...createChallengeState(challengeStartDay),
+        ...incomingChallenge,
+        startDay: challengeStartDay,
+        totalDays: challengeTotalDays,
+        targetYears: CHALLENGE_YEARS,
+        finished: Boolean(incomingChallenge.finished),
+        finishedDay: Number.isFinite(incomingChallenge.finishedDay) ? Math.max(1, Math.floor(incomingChallenge.finishedDay)) : null,
+        finalMoney: Math.max(0, Math.round(Number(incomingChallenge.finalMoney) || 0)),
+        bestMoney: Math.max(0, Math.round(Number(incomingChallenge.bestMoney) || 0))
+      };
       applyWorldSettings(incoming.worldSettings || state.worldSettings);
       normalizeObjectTextureSpacing();
       computeDemandAndPrices();
       rebalanceJobs();
+      updateMoneyChallengeProgress();
+      if (state.challenge.finished) {
+        state.paused = true;
+      }
       syncUiToggles();
     }
 
@@ -909,7 +1027,6 @@
       } else {
         buttonSetActive(ui.speed1Btn);
       }
-      updateZoomLabel();
       if (ui.toolsPanel) {
         ui.toolsPanel.classList.toggle("hidden", !uiState.toolsOpen);
       }
@@ -925,13 +1042,6 @@
         ui.worldSettingsModal.classList.toggle("hidden", !uiState.worldSettingsOpen);
       }
       document.body.classList.toggle("modal-open", uiState.worldSettingsOpen);
-    }
-
-    function updateZoomLabel() {
-      if (!ui.zoomStat) {
-        return;
-      }
-      ui.zoomStat.textContent = `Zoom: ${Math.round(view.zoom * 100)}%`;
     }
 
     function resetMovementKeys() {
@@ -1205,12 +1315,12 @@
       state = createInitialState(true);
       applyWorldSettings(currentSettings);
       normalizeObjectTextureSpacing();
-      initPopulation(4);
+      initPopulation(HERO_TARGET_COUNT);
       computeDemandAndPrices();
       camera.resetZoom();
       state.paused = false;
       autosaveTimer = 0;
-      addEvent("New randomized simulation started.");
+      addEvent(`New 5-year challenge started with ${HERO_TARGET_COUNT} heroes. Goal: maximize money.`);
       syncUiToggles();
       resizeCanvas();
       saveToStorage(false);
@@ -1295,6 +1405,7 @@
         }
       }
       rebalanceJobs();
+      updateMoneyChallengeProgress();
     }
 
     function buttonSetActive(activeBtn) {
@@ -1304,6 +1415,10 @@
 
     function setupUI() {
       ui.addPersonBtn.addEventListener("click", () => {
+        if (state.people.length >= HERO_TARGET_COUNT) {
+          addEvent(`Hero limit reached (${HERO_TARGET_COUNT}/${HERO_TARGET_COUNT}).`);
+          return;
+        }
         const p = createPerson();
         state.selectedId = p.id;
         state.selectedBuilding = null;
@@ -1338,13 +1453,6 @@
         syncUiToggles();
       });
 
-      if (ui.toggleResourcesBtn) {
-        ui.toggleResourcesBtn.addEventListener("click", () => {
-          uiState.resourceView = uiState.resourceView === "map" ? "world" : "map";
-          syncUiToggles();
-        });
-      }
-
       if (ui.resourceMapBtn) {
         ui.resourceMapBtn.addEventListener("click", () => {
           uiState.resourceView = "map";
@@ -1360,6 +1468,9 @@
       }
 
       ui.pauseBtn.addEventListener("click", () => {
+        if (state.challenge && state.challenge.finished) {
+          return;
+        }
         state.paused = !state.paused;
         ui.pauseBtn.textContent = state.paused ? "Resume" : "Pause";
       });
@@ -1417,27 +1528,6 @@
         ui.worldSettingsApplySaveBtn.addEventListener("click", async () => {
           await applyWorldSettingsFromForm(true);
           setWorldSettingsModalOpen(false);
-        });
-      }
-
-      if (ui.zoomInBtn) {
-        ui.zoomInBtn.addEventListener("click", () => {
-          camera.zoomByFactor(ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
-          updateZoomLabel();
-        });
-      }
-
-      if (ui.zoomOutBtn) {
-        ui.zoomOutBtn.addEventListener("click", () => {
-          camera.zoomByFactor(1 / ZOOM.step, canvas.width * 0.5, canvas.height * 0.5);
-          updateZoomLabel();
-        });
-      }
-
-      if (ui.zoomResetBtn) {
-        ui.zoomResetBtn.addEventListener("click", () => {
-          camera.resetZoom();
-          updateZoomLabel();
         });
       }
 
@@ -2183,60 +2273,107 @@
     }
 
     function pickWorkTask(person) {
-      const demand = state.market.demand;
-      const stocks = state.market.stocks;
-
-      if (person.role === "forager") {
-        const herbsShortage = demand.herbs - stocks.herbs;
-        const foodShortage = demand.food - stocks.food;
-        if (herbsShortage > foodShortage) {
-          const best = nearestPatchWith("herbs");
-          if (best && best.patch.herbs > 1) {
-            return createTask("gather_herbs", { x: best.patch.x, y: best.patch.y }, 1.8, { patchIndex: best.index });
-          }
-        }
-        const orchard = richestOrchard();
-        const bestFood = nearestPatchWith("food");
-        const orchardFood = orchard ? orchard.orchard.food : 0;
-        const wildFood = bestFood ? bestFood.patch.food : 0;
-        if (orchard && orchardFood >= wildFood && orchardFood > 1) {
-          return createTask("gather_orchard_food", { x: orchard.orchard.x, y: orchard.orchard.y }, 1.6, { orchardIndex: orchard.index });
-        }
-        if (bestFood && wildFood > 1) {
-          return createTask("gather_food", { x: bestFood.patch.x, y: bestFood.patch.y }, 1.7, { patchIndex: bestFood.index });
-        }
-        return createTask("idle", buildingTarget("townhall"), 1.5);
+      function sellUnitPrice(good) {
+        const price = Number(state.market.prices[good]) || BASE_PRICES[good] || 1;
+        const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
+        return Math.max(1, Math.floor(price * factor));
       }
 
-      if (person.role === "woodcutter") {
-        const logsGap = demand.logs - stocks.logs;
-        const forest = richestForest();
-        if (logsGap > 0 && forest && forest.forest.wood > 1.5) {
-          return createTask("chop_wood", { x: forest.forest.x, y: forest.forest.y }, 2.2, { forestIndex: forest.index });
-        }
-        return createTask("idle", buildingTarget("townhall"), 1.4);
+      function expectedYield(taskType, available) {
+        if (taskType === "gather_food") return Math.min(available, 2.25 * roleEfficiency(person, "forager"));
+        if (taskType === "gather_orchard_food") return Math.min(available, 2.65 * roleEfficiency(person, "forager"));
+        if (taskType === "gather_herbs") return Math.min(available, 1.7 * roleEfficiency(person, "forager"));
+        if (taskType === "chop_wood") return Math.min(available, 2.5 * roleEfficiency(person, "woodcutter"));
+        if (taskType === "harvest_farm") return Math.min(available, 3.0 * roleEfficiency(person, "farmer"));
+        return 0;
       }
 
-      if (person.role === "farmer") {
-        if (!isBuildingBuilt("farm")) {
-          const orchard = richestOrchard();
-          const bestFood = nearestPatchWith("food");
-          const orchardFood = orchard ? orchard.orchard.food : 0;
-          const wildFood = bestFood ? bestFood.patch.food : 0;
-          if (orchard && orchardFood >= wildFood && orchardFood > 1) {
-            return createTask("gather_orchard_food", { x: orchard.orchard.x, y: orchard.orchard.y }, 1.6, { orchardIndex: orchard.index });
-          }
-          if (bestFood && wildFood > 1) {
-            return createTask("gather_food", { x: bestFood.patch.x, y: bestFood.patch.y }, 1.7, { patchIndex: bestFood.index });
-          }
-          return createTask("idle", buildingTarget("townhall"), 1.4);
+      function travelHours(target) {
+        if (!target) {
+          return 0;
         }
-        if (state.resources.farm.crop > 1.2) {
-          return createTask("harvest_farm", { x: BUILDINGS.farm.x + 55, y: BUILDINGS.farm.y + 40 }, 1.9);
-        }
-        return createTask("tend_farm", { x: BUILDINGS.farm.x + 70, y: BUILDINGS.farm.y + 50 }, 1.8);
+        const dist = Math.hypot((target.x || person.x) - person.x, (target.y || person.y) - person.y);
+        return dist / Math.max(1, person.speed);
       }
-      return createTask("idle", buildingTarget("townhall"), 1.2);
+
+      function taskScore(good, taskType, target, duration, available) {
+        if (!good || available <= 0) {
+          return -1;
+        }
+        const yieldUnits = expectedYield(taskType, available);
+        if (yieldUnits <= 0) {
+          return -1;
+        }
+        const gross = yieldUnits * sellUnitPrice(good);
+        const hours = Math.max(0.3, duration + travelHours(target));
+        return gross / hours;
+      }
+
+      const options = [];
+
+      const herbsPatch = nearestPatchWith("herbs");
+      if (herbsPatch && herbsPatch.patch.herbs > 0.9) {
+        const target = { x: herbsPatch.patch.x, y: herbsPatch.patch.y };
+        options.push({
+          score: taskScore("herbs", "gather_herbs", target, 1.8, herbsPatch.patch.herbs),
+          task: () => createTask("gather_herbs", target, 1.8, { patchIndex: herbsPatch.index })
+        });
+      }
+
+      const orchard = richestOrchard();
+      if (orchard && orchard.orchard.food > 1) {
+        const target = { x: orchard.orchard.x, y: orchard.orchard.y };
+        options.push({
+          score: taskScore("food", "gather_orchard_food", target, 1.6, orchard.orchard.food),
+          task: () => createTask("gather_orchard_food", target, 1.6, { orchardIndex: orchard.index })
+        });
+      }
+
+      const foodPatch = nearestPatchWith("food");
+      if (foodPatch && foodPatch.patch.food > 1) {
+        const target = { x: foodPatch.patch.x, y: foodPatch.patch.y };
+        options.push({
+          score: taskScore("food", "gather_food", target, 1.7, foodPatch.patch.food),
+          task: () => createTask("gather_food", target, 1.7, { patchIndex: foodPatch.index })
+        });
+      }
+
+      const forest = richestForest();
+      if (forest && forest.forest.wood > 1) {
+        const target = { x: forest.forest.x, y: forest.forest.y };
+        options.push({
+          score: taskScore("logs", "chop_wood", target, 2.2, forest.forest.wood),
+          task: () => createTask("chop_wood", target, 2.2, { forestIndex: forest.index })
+        });
+      }
+
+      if (isBuildingBuilt("farm")) {
+        const farm = state.resources.farm;
+        const harvestTarget = { x: BUILDINGS.farm.x + 55, y: BUILDINGS.farm.y + 40 };
+        if (farm.crop > 0.6) {
+          options.push({
+            score: taskScore("food", "harvest_farm", harvestTarget, 1.9, farm.crop),
+            task: () => createTask("harvest_farm", harvestTarget, 1.9)
+          });
+        }
+        if (farm.crop <= 1.2 || farm.fertility < farm.maxFertility * 0.68) {
+          const tendTarget = { x: BUILDINGS.farm.x + 70, y: BUILDINGS.farm.y + 50 };
+          const fertilityGap = clamp((farm.maxFertility - farm.fertility) / Math.max(1, farm.maxFertility), 0, 1);
+          const strategicValue = sellUnitPrice("food") * (0.75 + fertilityGap * 2.6);
+          const hours = Math.max(0.3, 1.8 + travelHours(tendTarget));
+          options.push({
+            score: strategicValue / hours,
+            task: () => createTask("tend_farm", tendTarget, 1.8)
+          });
+        }
+      }
+
+      options.sort((a, b) => b.score - a.score);
+      const best = options.find((o) => Number.isFinite(o.score) && o.score > 0);
+      if (best) {
+        return best.task();
+      }
+      return createTask("idle", buildingTarget("townhall"), 1.3);
     }
 
     function decideTask(person) {
@@ -2575,14 +2712,20 @@
       const foodGap = Math.max(0, demand.food - stocks.food);
       const logsGap = Math.max(0, demand.logs - stocks.logs);
       const herbsGap = Math.max(0, demand.herbs - stocks.herbs);
-      const foodPricePressure = Math.max(0.6, (prices.food || BASE_PRICES.food) / BASE_PRICES.food);
-      const logsPricePressure = Math.max(0.6, (prices.logs || BASE_PRICES.logs) / BASE_PRICES.logs);
-      const herbsPricePressure = Math.max(0.6, (prices.herbs || BASE_PRICES.herbs) / BASE_PRICES.herbs);
+      const foodUnitValue = Math.max(1, Math.floor((prices.food || BASE_PRICES.food) * GAMEPLAY.trade.sellCraftFactor));
+      const logsUnitValue = Math.max(1, Math.floor((prices.logs || BASE_PRICES.logs) * GAMEPLAY.trade.sellRawFactor));
+      const herbsUnitValue = Math.max(1, Math.floor((prices.herbs || BASE_PRICES.herbs) * GAMEPLAY.trade.sellRawFactor));
+      const incomePotential = {
+        farmer: (isBuildingBuilt("farm") ? 3.0 : 2.2) * foodUnitValue,
+        forager: Math.max(2.65 * foodUnitValue, 1.7 * herbsUnitValue),
+        woodcutter: 2.5 * logsUnitValue
+      };
+      const foodPressure = foodGap + demand.food * 0.08;
 
       const driver = {
-        farmer: (foodGap * 1.1 + demand.food * 0.1) * foodPricePressure,
-        forager: (foodGap * 0.55 + herbsGap * 1.2 + demand.herbs * 0.1) * ((foodPricePressure + herbsPricePressure) * 0.5),
-        woodcutter: (logsGap * 1.15 + demand.logs * 0.1) * logsPricePressure
+        farmer: incomePotential.farmer * 1.25 + foodPressure * 2.8,
+        forager: incomePotential.forager * 1.2 + herbsGap * 2.3 + foodPressure * 1.1,
+        woodcutter: incomePotential.woodcutter * 1.05 + logsGap * 1.9
       };
 
       if (!isBuildingBuilt("farm")) {
@@ -2639,7 +2782,8 @@
         const baseBonus = person.baseProfession === targetRole ? 35 : 0;
         const switchPenalty = person.role !== targetRole ? (person.switchPenaltyHours > 0 ? 120 : 45) : 0;
         const condition = person.health + (100 - person.hunger);
-        return exp * 3 + sameRoleBonus + baseBonus + condition - switchPenalty;
+        const incomeBonus = incomePotential[targetRole] || 0;
+        return exp * 3 + sameRoleBonus + baseBonus + condition + incomeBonus * 2 - switchPenalty;
       }
 
       function sourceSurplus(sourceRole) {
@@ -2940,6 +3084,7 @@
           addEvent(`Monthly taxes collected: $${taxes}.`);
         }
       }
+      updateMoneyChallengeProgress();
     }
 
     function processHourTick(hourAbsolute) {
@@ -2989,13 +3134,33 @@
     }
 
     function updateUI() {
+      updateMoneyChallengeProgress();
       const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
-      const totalWorldMoney = Math.round((Number(state.bank.treasury) || 0) + peopleCash);
+      const totalWorldMoney = Math.round(totalMoneyScore());
+      const challenge = moneyChallengeState();
+      const elapsedDays = challengeElapsedDays();
+      const daysLeft = challengeDaysLeft();
+      const challengeProgress = Math.round(challengeProgressRatio() * 100);
       ui.popStat.textContent = String(state.people.length);
       ui.stageStat.textContent = state.city.stage;
       ui.dayStat.textContent = String(state.day);
       ui.marketCashStat.textContent = `$${Math.round(state.bank.treasury)}`;
       ui.worldMoneyStat.textContent = `$${totalWorldMoney}`;
+      if (ui.addPersonBtn) {
+        ui.addPersonBtn.disabled = state.people.length >= HERO_TARGET_COUNT || Boolean(challenge.finished);
+      }
+      if (ui.pauseBtn) {
+        ui.pauseBtn.disabled = Boolean(challenge.finished);
+      }
+      if (ui.speed1Btn) {
+        ui.speed1Btn.disabled = Boolean(challenge.finished);
+      }
+      if (ui.speed3Btn) {
+        ui.speed3Btn.disabled = Boolean(challenge.finished);
+      }
+      if (ui.speed6Btn) {
+        ui.speed6Btn.disabled = Boolean(challenge.finished);
+      }
 
       const hh = formatHour(currentHour());
       const calendarDay = Math.max(1, state.day);
@@ -3010,6 +3175,8 @@
       ui.overlayText.innerHTML = `
         <div><b>Y${year} M${month} D${dayOfMonth}</b> ${hh} | Population: ${state.people.length}</div>
         <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)}</div>
+        <div>Goal: maximize money in ${challenge.targetYears} years | Progress: <b>${challengeProgress}%</b> (${elapsedDays}/${challenge.totalDays} days, ${daysLeft} left)</div>
+        <div>${challenge.finished ? `Challenge complete. Final $${challenge.finalMoney}, peak $${challenge.bestMoney}.` : `Current money: $${totalWorldMoney} | Best so far: $${challenge.bestMoney}`}</div>
         <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>
         <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
@@ -3088,10 +3255,10 @@
         }
       }
       ui.professionLegend.innerHTML = [
-        `<div class="legend-row"><span><span class="dot" style="background:#d0d95c"></span>Forager</span><span>${counts.forager}</span></div>`,
-        `<div class="legend-row"><span><span class="dot" style="background:#63b35d"></span>Farmer</span><span>${counts.farmer}</span></div>`,
-        `<div class="legend-row"><span><span class="dot" style="background:#5f8f53"></span>Woodcutter</span><span>${counts.woodcutter}</span></div>`,
-        `<div class="legend-row"><span><span class="dot" style="background:#9f9f9f"></span>Unemployed</span><span>${counts.unemployed}</span></div>`
+        `<div class="legend-row"><span><span class="dot" style="background:${ROLE_COLORS.forager}"></span>Forager</span><span>${counts.forager}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:${ROLE_COLORS.farmer}"></span>Farmer</span><span>${counts.farmer}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:${ROLE_COLORS.woodcutter}"></span>Woodcutter</span><span>${counts.woodcutter}</span></div>`,
+        `<div class="legend-row"><span><span class="dot" style="background:${ROLE_COLORS.unemployed}"></span>Unemployed</span><span>${counts.unemployed}</span></div>`
       ].join("");
     }
 
@@ -3351,7 +3518,6 @@
       ctx.imageSmoothingEnabled = false;
       camera.resize(canvas.width, canvas.height);
       updateCameraInsets();
-      updateZoomLabel();
     }
 
     function imageReady(img) {
@@ -4186,9 +4352,7 @@
 
       if (SIMPLE_GRAPHICS) {
         for (const person of state.people) {
-          const roleColor = person.role === "farmer"
-            ? "#d9bf73"
-            : (person.role === "woodcutter" ? "#7ea6d8" : "#9dd88a");
+          const roleColor = ROLE_COLORS[person.role] || ROLE_COLORS.unemployed;
           const bodyR = 7 * VISUAL_SCALE;
           const offsetY = 4 * VISUAL_SCALE;
           ctx.fillStyle = roleColor;
@@ -4311,16 +4475,11 @@
         camera.panByWorld(dx * PAN.keyboardSpeed * dtSec, dy * PAN.keyboardSpeed * dtSec);
       }
 
-      if (camera.update(dtSec)) {
-        updateZoomLabel();
-      }
+      camera.update(dtSec);
     }
 
-    let lastFrame = performance.now();
-    function gameLoop(now) {
-      const dt = Math.min(0.12, (now - lastFrame) / 1000);
-      lastFrame = now;
-
+    function stepFrame(dtSec) {
+      const dt = Math.max(0, Math.min(0.12, dtSec));
       updateCameraControls(dt);
 
       if (!state.paused) {
@@ -4333,8 +4492,77 @@
       }
       updateVisualEffects(dt);
       render();
+    }
+
+    let lastFrame = performance.now();
+    function gameLoop(now) {
+      const dt = Math.min(0.12, (now - lastFrame) / 1000);
+      lastFrame = now;
+      stepFrame(dt);
       requestAnimationFrame(gameLoop);
     }
+
+    function renderGameToText() {
+      const challenge = moneyChallengeState();
+      const heroes = [...state.people]
+        .sort((a, b) => (Number(b.money) || 0) - (Number(a.money) || 0))
+        .slice(0, HERO_TARGET_COUNT)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          role: p.role,
+          x: Number(p.x.toFixed(1)),
+          y: Number(p.y.toFixed(1)),
+          hunger: Number(p.hunger.toFixed(1)),
+          health: Number(p.health.toFixed(1)),
+          money: Math.round(Number(p.money) || 0),
+          task: p.task ? p.task.type : "none"
+        }));
+      const payload = {
+        mode: challenge.finished ? "challenge_complete" : (state.paused ? "paused" : "running"),
+        coordinateSystem: "origin top-left; x right; y down",
+        time: {
+          day: state.day,
+          hour: formatHour(currentHour())
+        },
+        challenge: {
+          yearsTarget: challenge.targetYears,
+          daysElapsed: challengeElapsedDays(),
+          daysLeft: challengeDaysLeft(),
+          progress: Number(challengeProgressRatio().toFixed(3)),
+          finished: challenge.finished,
+          currentMoney: Math.round(totalMoneyScore()),
+          bestMoney: Math.round(challenge.bestMoney || 0),
+          finalMoney: Math.round(challenge.finalMoney || 0)
+        },
+        heroes,
+        market: {
+          prices: { ...state.market.prices },
+          stocks: {
+            food: Math.round(state.market.stocks.food || 0),
+            logs: Math.round(state.market.stocks.logs || 0),
+            herbs: Math.round(state.market.stocks.herbs || 0)
+          }
+        }
+      };
+      return JSON.stringify(payload);
+    }
+
+    window.render_game_to_text = renderGameToText;
+    window.advanceTime = (ms) => {
+      const totalSeconds = clamp((Number(ms) || 0) / 1000, 0, 30);
+      if (totalSeconds <= 0) {
+        render();
+        return;
+      }
+      const step = 1 / 60;
+      let remaining = totalSeconds;
+      while (remaining > 0) {
+        const dt = Math.min(step, remaining);
+        stepFrame(dt);
+        remaining -= dt;
+      }
+    };
 
     async function init() {
       setupUI();
@@ -4344,9 +4572,9 @@
       const restored = await loadFromStorage(false);
       if (!restored) {
         normalizeObjectTextureSpacing();
-        initPopulation(4);
+        initPopulation(HERO_TARGET_COUNT);
         computeDemandAndPrices();
-        addEvent("Simulation started.");
+        addEvent(`5-year challenge started with ${HERO_TARGET_COUNT} heroes. Goal: maximize money.`);
         saveToStorage(false);
       } else {
         addEvent("Save restored on startup.");

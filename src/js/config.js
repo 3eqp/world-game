@@ -30,17 +30,11 @@ window.WorldGame.Config = Object.freeze({
     market: "assets/cute/chest.png",
     farm: "assets/cute/farmland.png",
     townhall: "assets/cute/bridge.png",
-    sawmill: "assets/cute/oak_tree_small.png",
-    workshop: "assets/cute/decor_sheet.png",
-    clinic: "assets/cute/cow.png",
     forest: "assets/cute/oak_tree.png",
     wild: "assets/cute/chicken.png",
     iconMarket: "assets/cute/chest.png",
     iconFarm: "assets/cute/farmland.png",
-    iconTownhall: "assets/cute/sheep.png",
-    iconSawmill: "assets/cute/oak_tree_small.png",
-    iconWorkshop: "assets/cute/pig.png",
-    iconClinic: "assets/cute/cow.png"
+    iconTownhall: "assets/cute/sheep.png"
   },
   BUILDINGS: {
     bank: { x: 760, y: 900, w: 126, h: 90, name: "Bank" },
