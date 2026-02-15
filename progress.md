@@ -23,3 +23,9 @@ Original prompt: сделай главной целью игроков нако�
 - Validation: No console error artifacts after favicon 204 fix (no `errors-*.json` generated).
 - Validation gap: Challenge end overlay/winner not auto-simulated to year 5 in this run; logic verified by code paths and persisted result model.
 - Cleanup: reverted repository package dependency changes after validation (Playwright remains installed in skill directory only).
+- Update: Added per-player unique color assignment (`person.color`) with deterministic palette selection and backward-compatible save hydration for older states without colors.
+- Update: Player rendering in simple graphics now uses each person's unique color instead of profession color.
+- Update: Added color markers to the balances list in the person stats card and a selected-player color indicator.
+- Validation: `node --check src/js/game.js` passed after adding player color assignment and UI markers.
+- Validation: Playwright run completed with screenshots (`/tmp/world-game-playtest-colors/shot-0.png`, `shot-1.png`) and states (`state-0.json`, `state-1.json`); map render shows distinct per-player colors.
+- Validation gap: This Playwright client captures the canvas only, so right-panel balance marker dots were verified by code path rather than full-page screenshot.

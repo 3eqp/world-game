@@ -95,6 +95,18 @@
     const CHALLENGE_TOTAL_DAYS = CHALLENGE_YEARS * DAYS_PER_YEAR;
     let LIFE_SPAN_DAYS = 360;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
+    const PLAYER_COLORS = Object.freeze([
+      "#ff5a5f",
+      "#3b82f6",
+      "#22c55e",
+      "#f59e0b",
+      "#a855f7",
+      "#06b6d4",
+      "#ef4444",
+      "#84cc16",
+      "#f97316",
+      "#14b8a6"
+    ]);
     const SIMPLE_GRAPHICS = true;
     const VISUAL_SCALE = 2;
     const PERSON_CLICK_RADIUS = 40;
@@ -285,6 +297,10 @@
         bank: {
           treasury: 0
         },
+        economy: {
+          inflation: 1,
+          printedTotal: 0
+        },
         market: {
           treasury: 0,
           stocks: {
@@ -300,7 +316,12 @@
           dailyNeed: {
             food: 0
           },
-          prices: { ...BASE_PRICES }
+          prices: { ...BASE_PRICES },
+          consigned: {
+            food: [],
+            logs: [],
+            herbs: []
+          }
         },
         resources: {
           forests: [
@@ -471,6 +492,56 @@
 
     function pick(arr) {
       return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function normalizePersonColor(value) {
+      if (typeof value !== "string") {
+        return "";
+      }
+      const color = value.trim();
+      if (/^#[0-9a-f]{6}$/i.test(color)) {
+        return color.toLowerCase();
+      }
+      return "";
+    }
+
+    function nextPersonColor(seed, usedColors) {
+      const paletteLen = PLAYER_COLORS.length;
+      const startIdx = Math.abs(Math.floor(Number(seed) || 0)) % paletteLen;
+      for (let i = 0; i < paletteLen; i++) {
+        const color = PLAYER_COLORS[(startIdx + i) % paletteLen];
+        if (!usedColors.has(color)) {
+          usedColors.add(color);
+          return color;
+        }
+      }
+      const fallback = PLAYER_COLORS[startIdx];
+      usedColors.add(fallback);
+      return fallback;
+    }
+
+    function collectUsedPersonColors(excludeId = null) {
+      const used = new Set();
+      for (const p of state.people) {
+        if (excludeId !== null && p.id === excludeId) {
+          continue;
+        }
+        const color = normalizePersonColor(p.color);
+        if (color) {
+          used.add(color);
+        }
+      }
+      return used;
+    }
+
+    function ensurePersonColor(person, usedColors) {
+      const existing = normalizePersonColor(person && person.color);
+      if (existing && !usedColors.has(existing)) {
+        usedColors.add(existing);
+        return existing;
+      }
+      const seed = person && Number.isFinite(person.id) ? person.id : state.nextPersonId;
+      return nextPersonColor(seed, usedColors);
     }
 
     function distance(a, b) {
@@ -654,8 +725,13 @@
         };
       }
       const incomingBank = incoming.bank && typeof incoming.bank === "object" ? incoming.bank : {};
+      const incomingEconomy = incoming.economy && typeof incoming.economy === "object" ? incoming.economy : {};
       state.bank = {
         treasury: Math.max(0, Number(incomingBank.treasury) || 0)
+      };
+      state.economy = {
+        inflation: clamp(Number(incomingEconomy.inflation) || 1, 1, 25),
+        printedTotal: Math.max(0, Number(incomingEconomy.printedTotal) || 0)
       };
       const incomingConstruction = incomingCity.construction && typeof incomingCity.construction === "object"
         ? incomingCity.construction
@@ -672,6 +748,14 @@
       state.market.demand = { ...base.market.demand, ...(incomingMarket.demand || {}) };
       state.market.dailyNeed = { ...base.market.dailyNeed, ...(incomingMarket.dailyNeed || {}) };
       state.market.prices = { ...base.market.prices, ...(incomingMarket.prices || {}) };
+      const incomingConsigned = incomingMarket.consigned && typeof incomingMarket.consigned === "object"
+        ? incomingMarket.consigned
+        : {};
+      state.market.consigned = {
+        food: Array.isArray(incomingConsigned.food) ? incomingConsigned.food : [],
+        logs: Array.isArray(incomingConsigned.logs) ? incomingConsigned.logs : [],
+        herbs: Array.isArray(incomingConsigned.herbs) ? incomingConsigned.herbs : []
+      };
 
       state.resources = { ...base.resources, ...incomingResources };
       state.resources.farm = { ...base.resources.farm, ...(incomingResources.farm || {}) };
@@ -697,8 +781,10 @@
         state.roadEdges[k] = clamp(v, 0, ROAD.maxEdgeHeat);
       }
 
+      const usedColors = new Set();
       state.people = Array.isArray(incoming.people) ? incoming.people.map((p) => ({
         ...p,
+        color: ensurePersonColor(p, usedColors),
         role: (typeof p.role === "string" && PROFESSIONS.includes(p.role)) ? p.role : "unemployed",
         baseProfession: (typeof p.baseProfession === "string" && PROFESSIONS.includes(p.baseProfession))
           ? p.baseProfession
@@ -714,6 +800,11 @@
         careerEarnings: Math.max(0, Math.round(Number(p.careerEarnings) || 0)),
         ignoredNeedsHours: Math.max(0, Number(p.ignoredNeedsHours) || 0),
         needsWarningCooldown: Math.max(0, Number(p.needsWarningCooldown) || 0),
+        purchaseCredits: {
+          food: Math.max(0, Math.round(Number(p.purchaseCredits && p.purchaseCredits.food) || 0)),
+          logs: Math.max(0, Math.round(Number(p.purchaseCredits && p.purchaseCredits.logs) || 0)),
+          herbs: Math.max(0, Math.round(Number(p.purchaseCredits && p.purchaseCredits.herbs) || 0))
+        },
         ageDays: Number.isFinite(p.ageDays)
           ? Math.max(0, p.ageDays)
           : (Number.isFinite(p.age)
@@ -982,6 +1073,7 @@
       const person = {
         id,
         name: `${pick(NAMES)} #${id}`,
+        color: ensurePersonColor({ id }, collectUsedPersonColors()),
         x,
         y,
         targetX: x,
@@ -1004,8 +1096,13 @@
         homeIndex,
         alive: true,
         task: null,
+        purchaseCredits: {
+          food: 0,
+          logs: 0,
+          herbs: 0
+        },
         inventory: {
-          food: Math.random() < 0.45 ? 1 : 0,
+          food: 0,
           logs: 0,
           herbs: 0
         }
@@ -2044,7 +2141,7 @@
       const canBuyHerbs = MECHANICS.trade && marketOpen && state.market.stocks.herbs > 0 && person.money >= state.market.prices.herbs;
 
       function foodPriorityTask() {
-        if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
+        if (person.inventory.food > 0 && (person.purchaseCredits.food || 0) > 0 && person.hunger >= GAMEPLAY.needs.eatFromInventoryHunger) {
           return createTask("eat_food", null, 0.1);
         }
         if (canBuyFood) {
@@ -2064,7 +2161,7 @@
       }
 
       function healthPriorityTask() {
-        if (person.inventory.herbs > 0 && person.health <= 88) {
+        if (person.inventory.herbs > 0 && (person.purchaseCredits.herbs || 0) > 0 && person.health <= 88) {
           return createTask("use_herbs", null, 0.12);
         }
         if (canBuyHerbs && person.health <= 70) {
@@ -2108,48 +2205,165 @@
       return pickWorkTask(person);
     }
 
+    function sellerUnitPrice(good) {
+      const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
+      return Math.max(1, Math.floor((state.market.prices[good] || BASE_PRICES[good] || 1) * factor));
+    }
+
+    function ensureConsignedQueues() {
+      if (!state.market.consigned || typeof state.market.consigned !== "object") {
+        state.market.consigned = { food: [], logs: [], herbs: [] };
+      }
+      for (const good of GOODS) {
+        if (!Array.isArray(state.market.consigned[good])) {
+          state.market.consigned[good] = [];
+        }
+      }
+    }
+
+    function enqueueConsignment(person, good, qty) {
+      if (!person || qty <= 0) {
+        return;
+      }
+      ensureConsignedQueues();
+      state.market.consigned[good].push({
+        sellerId: person.id,
+        qty: Math.max(0, Math.floor(qty)),
+        unit: sellerUnitPrice(good)
+      });
+    }
+
+    function payConsignedSellers(good, qtyWanted) {
+      ensureConsignedQueues();
+      let remaining = Math.max(0, Math.floor(qtyWanted));
+      let paidOut = 0;
+      const queue = state.market.consigned[good];
+      while (remaining > 0 && queue.length > 0) {
+        const head = queue[0];
+        const entryQty = Math.max(0, Math.floor(Number(head.qty) || 0));
+        if (entryQty <= 0) {
+          queue.shift();
+          continue;
+        }
+        const soldNow = Math.min(remaining, entryQty);
+        const unit = Math.max(1, Math.floor(Number(head.unit) || sellerUnitPrice(good)));
+        const payout = soldNow * unit;
+        const seller = getPerson(head.sellerId);
+        if (seller) {
+          seller.money += payout;
+          seller.careerEarnings = Math.max(0, Math.round(Number(seller.careerEarnings) || 0)) + payout;
+          paidOut += payout;
+        }
+        head.qty = entryQty - soldNow;
+        remaining -= soldNow;
+        if (head.qty <= 0) {
+          queue.shift();
+        }
+      }
+      return paidOut;
+    }
+
+    function printMoney(amount, reason) {
+      const mint = Math.max(0, Math.round(Number(amount) || 0));
+      if (mint <= 0) {
+        return 0;
+      }
+      state.bank.treasury += mint;
+      state.economy.printedTotal = Math.max(0, Number(state.economy.printedTotal) || 0) + mint;
+      const baseMass = Math.max(200, totalMoneyScore());
+      const pressure = mint / baseMass;
+      state.economy.inflation = clamp((Number(state.economy.inflation) || 1) + pressure * 0.35, 1, 25);
+      addEvent(`State printed $${mint}${reason ? ` (${reason})` : ""}. Inflation: x${state.economy.inflation.toFixed(2)}.`);
+      return mint;
+    }
+
+    function purchaseFromMarket(good, requestedQty, payerType, payer) {
+      if (!MECHANICS.trade || !GOODS.includes(good)) {
+        return 0;
+      }
+      const available = Math.max(0, Math.floor(state.market.stocks[good] || 0));
+      let qty = Math.min(Math.max(0, Math.floor(requestedQty || 0)), available);
+      if (qty <= 0) {
+        return 0;
+      }
+      const unitRetail = Math.max(1, Math.floor(state.market.prices[good] || BASE_PRICES[good] || 1));
+      const totalCost = qty * unitRetail;
+
+      if (payerType === "person") {
+        const budget = Math.max(0, Math.floor(Number(payer && payer.money) || 0));
+        qty = Math.min(qty, Math.floor(budget / unitRetail));
+        if (qty <= 0) {
+          return 0;
+        }
+        const personTotalCost = qty * unitRetail;
+        payer.money -= personTotalCost;
+        state.bank.treasury += personTotalCost;
+      } else if (payerType === "state") {
+        const treasury = Math.max(0, Math.floor(Number(state.bank.treasury) || 0));
+        if (treasury < totalCost) {
+          printMoney(totalCost - treasury, `state purchase of ${good}`);
+        }
+        state.bank.treasury -= totalCost;
+      } else if (payerType === "external") {
+        state.bank.treasury += totalCost;
+      } else {
+        return 0;
+      }
+
+      state.market.stocks[good] -= qty;
+      const paidOut = payConsignedSellers(good, qty);
+      if (paidOut > 0) {
+        state.bank.treasury = Math.max(0, state.bank.treasury - paidOut);
+      }
+      if (payerType === "state" && totalCost > paidOut) {
+        // State buyer pays into market escrow; unsent margin returns to treasury.
+        state.bank.treasury += (totalCost - paidOut);
+      }
+      return qty;
+    }
+
     function executeTask(person, task) {
       const market = state.market;
       const farm = state.resources.farm;
 
       if (task.type === "eat_food") {
-        if (person.inventory.food > 0 && person.hunger >= GAMEPLAY.needs.eatExecuteHunger) {
+        if (person.inventory.food > 0 && (person.purchaseCredits.food || 0) > 0 && person.hunger >= GAMEPLAY.needs.eatExecuteHunger) {
           person.inventory.food -= 1;
+          person.purchaseCredits.food = Math.max(0, (Number(person.purchaseCredits.food) || 0) - 1);
           person.hunger = clamp(person.hunger - GAMEPLAY.needs.hungerReliefPerFood, 0, 100);
         }
         return;
       }
 
       if (task.type === "buy_food") {
-        if (!MECHANICS.trade) {
+        if (!MECHANICS.trade || !isBuildingBuilt("market")) {
           return;
         }
-        if (market.stocks.food > 0 && person.money >= market.prices.food) {
-          market.stocks.food -= 1;
-          person.money -= market.prices.food;
-          state.bank.treasury += market.prices.food;
+        const bought = purchaseFromMarket("food", 1, "person", person);
+        if (bought > 0) {
           person.inventory.food += 1;
+          person.purchaseCredits.food = (Number(person.purchaseCredits.food) || 0) + 1;
         }
         return;
       }
 
       if (task.type === "use_herbs") {
-        if (person.inventory.herbs > 0 && person.health < 100) {
+        if (person.inventory.herbs > 0 && (person.purchaseCredits.herbs || 0) > 0 && person.health < 100) {
           person.inventory.herbs -= 1;
+          person.purchaseCredits.herbs = Math.max(0, (Number(person.purchaseCredits.herbs) || 0) - 1);
           person.health = clamp(person.health + 28, 0, 100);
         }
         return;
       }
 
       if (task.type === "buy_herbs") {
-        if (!MECHANICS.trade) {
+        if (!MECHANICS.trade || !isBuildingBuilt("market")) {
           return;
         }
-        if (market.stocks.herbs > 0 && person.money >= market.prices.herbs) {
-          market.stocks.herbs -= 1;
-          person.money -= market.prices.herbs;
-          state.bank.treasury += market.prices.herbs;
+        const bought = purchaseFromMarket("herbs", 1, "person", person);
+        if (bought > 0) {
           person.inventory.herbs += 1;
+          person.purchaseCredits.herbs = (Number(person.purchaseCredits.herbs) || 0) + 1;
         }
         return;
       }
@@ -2170,17 +2384,16 @@
           if (qty <= 0) {
             continue;
           }
-          const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
-          const unit = Math.max(1, Math.floor(market.prices[good] * factor));
           const sold = qty;
           if (sold <= 0) {
             continue;
           }
           person.inventory[good] -= sold;
+          if (good === "food" || good === "herbs" || good === "logs") {
+            person.purchaseCredits[good] = Math.max(0, (Number(person.purchaseCredits[good]) || 0) - sold);
+          }
           market.stocks[good] += sold;
-          const income = sold * unit;
-          person.money += income;
-          person.careerEarnings = Math.max(0, Math.round(Number(person.careerEarnings) || 0)) + income;
+          enqueueConsignment(person, good, sold);
         }
         return;
       }
@@ -2357,6 +2570,7 @@
 
     function computeDemandAndPrices() {
       const pop = state.people.length;
+      const inflation = clamp(Number(state.economy && state.economy.inflation) || 1, 1, 25);
       const houses = state.city.houses.length;
       const constructionNeed = Math.max(0, Math.ceil((pop - houses * HOUSE_CAPACITY) / HOUSE_CAPACITY));
       const hungryPeople = state.people.filter((p) => p.hunger >= 60).length;
@@ -2373,7 +2587,7 @@
       state.market.demand.herbs = Math.max(0, herbsNeed);
       if (!MECHANICS.dynamicPricing) {
         for (const good of GOODS) {
-          state.market.prices[good] = BASE_PRICES[good] || 1;
+          state.market.prices[good] = Math.max(1, Math.round((BASE_PRICES[good] || 1) * inflation));
         }
         return;
       }
@@ -2395,7 +2609,7 @@
           0.45,
           4.25
         );
-        const targetPrice = basePrice * targetMultiplier;
+        const targetPrice = basePrice * targetMultiplier * inflation;
         const oldWeight = GAMEPLAY.marketModel.priceSmoothingOldWeight;
         const smoothed = prevPrice * oldWeight + targetPrice * (1 - oldWeight);
         state.market.prices[good] = Math.max(1, Math.round(smoothed));
@@ -2625,16 +2839,17 @@
 
       const payLogs = Math.min(logsNeed, Math.max(1, Math.ceil(project.cost.logs * 0.2)), Math.floor(state.market.stocks.logs));
       const payFood = Math.min(foodNeed, Math.max(1, Math.ceil(project.cost.food * 0.2)), Math.floor(state.market.stocks.food));
-      const payCash = Math.min(cashNeed, Math.max(1, Math.ceil(project.cost.cash * 0.2)), Math.floor(state.bank.treasury));
+      const payCash = Math.min(cashNeed, Math.max(1, Math.ceil(project.cost.cash * 0.2)));
       if (payLogs > 0) {
-        state.market.stocks.logs -= payLogs;
-        project.paid.logs += payLogs;
+        project.paid.logs += purchaseFromMarket("logs", payLogs, "state", null);
       }
       if (payFood > 0) {
-        state.market.stocks.food -= payFood;
-        project.paid.food += payFood;
+        project.paid.food += purchaseFromMarket("food", payFood, "state", null);
       }
       if (payCash > 0) {
+        if (state.bank.treasury < payCash) {
+          printMoney(payCash - state.bank.treasury, `construction funding (${project.label})`);
+        }
         state.bank.treasury -= payCash;
         project.paid.cash += payCash;
       }
@@ -2696,7 +2911,6 @@
         return;
       }
 
-      const pop = state.people.length;
       let builtToday = false;
       if (!isBuildingBuilt("townhall")) {
         const project = ensureConstructionProject("townhall", BUILD_COSTS.townhall, "Town Hall");
@@ -2724,7 +2938,8 @@
         }
       }
 
-      const needHomes = Math.max(0, Math.ceil((pop - state.city.houses.length * HOUSE_CAPACITY) / HOUSE_CAPACITY));
+      const heroCount = state.people.filter((p) => p.isHero).length;
+      const needHomes = Math.max(0, heroCount - state.city.houses.length);
       if (!builtToday && isBuildingBuilt("townhall") && needHomes > 0) {
         const houseProject = ensureHouseConstructionProject();
         const finished = investIntoProject(houseProject);
@@ -2777,8 +2992,7 @@
         const exportable = Math.max(0, state.market.stocks.logs - state.market.demand.logs - GAMEPLAY.trade.exportLogReserve);
         const sold = Math.min(exportable, GAMEPLAY.trade.exportLogBatch);
         if (sold > 0) {
-          state.market.stocks.logs -= sold;
-          state.bank.treasury += sold * state.market.prices.logs;
+          purchaseFromMarket("logs", sold, "external", null);
         }
       }
 
@@ -2856,13 +3070,16 @@
       const orchardFood = state.resources.orchards.reduce((sum, o) => sum + o.food, 0);
       const wildFood = state.resources.wild.reduce((sum, p) => sum + p.food, 0);
       const wildHerbs = state.resources.wild.reduce((sum, p) => sum + p.herbs, 0);
+      const inflation = clamp(Number(state.economy && state.economy.inflation) || 1, 1, 25);
+      const printedTotal = Math.round(Number(state.economy && state.economy.printedTotal) || 0);
       const resultsHtml = challenge.finished && challenge.winner
         ? `<div><b>Winner:</b> ${challenge.winner.name} (earned $${challenge.winner.careerEarnings}, cash $${challenge.winner.money})</div>
            ${challenge.results.map((row, idx) => `<div>#${idx + 1} ${row.name}: earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}</div>`).join("")}`
         : "";
       ui.overlayText.innerHTML = `
         <div><b>Y${year} M${month} D${dayOfMonth}</b> ${hh} | Population: ${state.people.length}</div>
-        <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)}</div>
+        <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)} | Inflation: x${inflation.toFixed(2)}</div>
+        <div>Money printed by state: <b>$${printedTotal}</b></div>
         <div>Goal: maximize money in ${challenge.targetYears} years | Progress: <b>${challengeProgress}%</b> (${elapsedDays}/${challenge.totalDays} days, ${daysLeft} left)</div>
         <div>${challenge.finished ? `Challenge complete. Final $${challenge.finalMoney}, peak $${challenge.bestMoney}.` : `Current money: $${totalWorldMoney} | Best so far: $${challenge.bestMoney}`}</div>
         ${resultsHtml}
@@ -2886,7 +3103,7 @@
       if (!selected) {
         const balances = state.people
           .slice(0, 14)
-          .map((p) => `<div class="mini">${p.name}: $${Math.round(p.money || 0)}</div>`)
+          .map((p) => `<div class="mini balance-row"><span class="balance-dot" style="background:${p.color || "#888"}"></span>${p.name}: $${Math.round(p.money || 0)}</div>`)
           .join("");
         ui.personCard.innerHTML = `
           <h2>No person selected</h2>
@@ -2897,6 +3114,7 @@
       } else {
         ui.personCard.innerHTML = `
           <h2>${selected.name}</h2>
+          <div class="mini balance-row"><span class="balance-dot" style="background:${selected.color || "#888"}"></span><b>Player color</b></div>
           <div class="mini"><b>Age:</b> ${selected.ageDays.toFixed(1)} / ${LIFE_SPAN_DAYS} days</div>
           <div class="mini"><b>Role:</b> ${roleLabel(selected.role)}</div>
           <div class="mini"><b>Base profession:</b> ${roleLabel(selected.baseProfession || selected.role)}</div>
@@ -4042,10 +4260,10 @@
 
       if (SIMPLE_GRAPHICS) {
         for (const person of state.people) {
-          const roleColor = ROLE_COLORS[person.role] || ROLE_COLORS.unemployed;
+          const personColor = person.color || ROLE_COLORS[person.role] || ROLE_COLORS.unemployed;
           const bodyR = 7 * VISUAL_SCALE;
           const offsetY = 4 * VISUAL_SCALE;
-          ctx.fillStyle = roleColor;
+          ctx.fillStyle = personColor;
           ctx.strokeStyle = "#1f1f1f";
           ctx.lineWidth = 1.4;
           ctx.beginPath();
@@ -4217,6 +4435,10 @@
               cash: challenge.winner.money
             }
             : null
+        },
+        economy: {
+          inflation: Number((state.economy && state.economy.inflation ? state.economy.inflation : 1).toFixed(3)),
+          printedTotal: Math.round(Number(state.economy && state.economy.printedTotal) || 0)
         },
         heroes,
         market: {
