@@ -29,3 +29,8 @@ Original prompt: сделай главной целью игроков нако�
 - Validation: `node --check src/js/game.js` passed after adding player color assignment and UI markers.
 - Validation: Playwright run completed with screenshots (`/tmp/world-game-playtest-colors/shot-0.png`, `shot-1.png`) and states (`state-0.json`, `state-1.json`); map render shows distinct per-player colors.
 - Validation gap: This Playwright client captures the canvas only, so right-panel balance marker dots were verified by code path rather than full-page screenshot.
+- Economy rewrite: selling now creates market consignments; hero income is paid only when a buyer actually purchases goods from market stock.
+- Added state money printing for procurement/construction cash shortfalls; printing increases inflation index.
+- Dynamic pricing now includes inflation multiplier; overlay/render text now expose inflation and total printed money.
+- Construction now buys logs/food through market purchase flow (with seller payouts), and houses target one home per hero after government buildings.
+- Enforced consume rule: gathered food/herbs are not directly usable; only market-purchased units (`purchaseCredits`) can be consumed.
