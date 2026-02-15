@@ -389,6 +389,13 @@
     .table td {
       border-top: 1px solid #ddd0b5;
       padding: 5px 2px;
+      vertical-align: top;
+    }
+
+    .trend-line {
+      font-family: "Menlo", "Consolas", monospace;
+      letter-spacing: 0.4px;
+      font-size: 11px;
     }
 
     .event-log {

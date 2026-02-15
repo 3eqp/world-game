@@ -37,6 +37,35 @@
         <button id="speed6Btn">x6</button>
       </div>
 
+      <div class="person-card">
+        <h2>Player Strategy</h2>
+        <div class="controls controls-two">
+          <button id="strategyBalancedBtn" class="active">Balanced</button>
+          <button id="strategyProfitBtn">Profit</button>
+        </div>
+        <div class="controls">
+          <button id="strategySafeBtn">Safe</button>
+        </div>
+        <div class="mini" id="strategySummary">Balanced: heroes keep a mix of earnings and safety.</div>
+      </div>
+
+      <div class="person-card">
+        <h2>Construction Plan</h2>
+        <div class="controls controls-two">
+          <button id="buildBalancedBtn" class="active">Balanced</button>
+          <button id="buildMarketBtn">Market First</button>
+        </div>
+        <div class="controls controls-two">
+          <button id="buildFarmBtn">Farm First</button>
+          <button id="buildTownhallBtn">Townhall First</button>
+        </div>
+        <div class="mini" id="buildSummary">Balanced order with adaptive housing.</div>
+      </div>
+
+      <div class="controls">
+        <button id="postChallengeBtn" class="hidden">Continue Sandbox</button>
+      </div>
+
       <div class="controls">
         <button id="toolsMenuBtn">Tools</button>
       </div>
@@ -107,6 +136,12 @@
       </div>
 
       <div class="person-card">
+        <h2>Challenge Scoring</h2>
+        <div class="mini" id="scoreMeta">Score = earned + 35% cash + survival bonus.</div>
+        <div class="mini" id="scoreBoard"></div>
+      </div>
+
+      <div class="person-card">
         <h2>Recent Events</h2>
         <div class="event-log" id="eventLog"></div>
       </div>
@@ -124,22 +159,22 @@
       <div class="settings-section">
         <h3>Mechanics</h3>
         <div class="settings-grid">
-          <label for="wsMechanicNeedsInput">Needs & health simulation</label>
+          <label for="wsMechanicNeedsInput" title="Controls hunger, health decay, and death risk when needs are ignored.">Needs & health simulation</label>
           <input id="wsMechanicNeedsInput" type="checkbox">
 
-          <label for="wsMechanicTradeInput">Trading at market</label>
+          <label for="wsMechanicTradeInput" title="Allows buying/selling goods through the market and seller payouts.">Trading at market</label>
           <input id="wsMechanicTradeInput" type="checkbox">
 
-          <label for="wsMechanicDynamicPricingInput">Dynamic demand and prices</label>
+          <label for="wsMechanicDynamicPricingInput" title="Prices react to demand/supply pressure instead of staying at base values.">Dynamic demand and prices</label>
           <input id="wsMechanicDynamicPricingInput" type="checkbox">
 
-          <label for="wsMechanicJobRebalanceInput">Auto job rebalance</label>
+          <label for="wsMechanicJobRebalanceInput" title="Heroes can switch roles automatically to match city needs.">Auto job rebalance</label>
           <input id="wsMechanicJobRebalanceInput" type="checkbox">
 
-          <label for="wsMechanicResourceRegenInput">Resource regeneration</label>
+          <label for="wsMechanicResourceRegenInput" title="Wild nodes and farm fertility slowly recover over time.">Resource regeneration</label>
           <input id="wsMechanicResourceRegenInput" type="checkbox">
 
-          <label for="wsMechanicConstructionInput">City construction progression</label>
+          <label for="wsMechanicConstructionInput" title="Enables automatic city building progress based on available resources and treasury.">City construction progression</label>
           <input id="wsMechanicConstructionInput" type="checkbox">
         </div>
       </div>

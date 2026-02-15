@@ -34,6 +34,16 @@
       speed1Btn: document.getElementById("speed1Btn"),
       speed3Btn: document.getElementById("speed3Btn"),
       speed6Btn: document.getElementById("speed6Btn"),
+      strategyBalancedBtn: document.getElementById("strategyBalancedBtn"),
+      strategyProfitBtn: document.getElementById("strategyProfitBtn"),
+      strategySafeBtn: document.getElementById("strategySafeBtn"),
+      strategySummary: document.getElementById("strategySummary"),
+      buildBalancedBtn: document.getElementById("buildBalancedBtn"),
+      buildMarketBtn: document.getElementById("buildMarketBtn"),
+      buildFarmBtn: document.getElementById("buildFarmBtn"),
+      buildTownhallBtn: document.getElementById("buildTownhallBtn"),
+      buildSummary: document.getElementById("buildSummary"),
+      postChallengeBtn: document.getElementById("postChallengeBtn"),
       toolsMenuBtn: document.getElementById("toolsMenuBtn"),
       worldSettingsBtn: document.getElementById("worldSettingsBtn"),
       toolsPanel: document.getElementById("toolsPanel"),
@@ -62,6 +72,8 @@
       personCard: document.getElementById("personCard"),
       buildingCard: document.getElementById("buildingCard"),
       marketTable: document.getElementById("marketTable"),
+      scoreMeta: document.getElementById("scoreMeta"),
+      scoreBoard: document.getElementById("scoreBoard"),
       eventLog: document.getElementById("eventLog")
     };
 
@@ -93,6 +105,67 @@
     const CHALLENGE_YEARS = 5;
     const DAYS_PER_YEAR = 360;
     const CHALLENGE_TOTAL_DAYS = CHALLENGE_YEARS * DAYS_PER_YEAR;
+    const MARKET_HISTORY_DAYS = 30;
+    const PLAYER_STRATEGIES = Object.freeze({
+      balanced: {
+        key: "balanced",
+        label: "Balanced",
+        summary: "Balanced: heroes keep a mix of earnings and safety.",
+        hungerShift: 0,
+        healthShift: 0,
+        riskPenalty: 1,
+        profitBias: 1
+      },
+      profit: {
+        key: "profit",
+        label: "Profit",
+        summary: "Profit: heroes take more risk and chase highest ROI tasks.",
+        hungerShift: 8,
+        healthShift: -8,
+        riskPenalty: 0.8,
+        profitBias: 1.22
+      },
+      safe: {
+        key: "safe",
+        label: "Safe",
+        summary: "Safe: heroes respond to hunger/health earlier and avoid risky work.",
+        hungerShift: -9,
+        healthShift: 10,
+        riskPenalty: 1.26,
+        profitBias: 0.88
+      }
+    });
+    const BUILD_PLANS = Object.freeze({
+      balanced: {
+        key: "balanced",
+        label: "Balanced",
+        summary: "Balanced order with adaptive housing.",
+        order: ["townhall", "market", "farm"]
+      },
+      marketFirst: {
+        key: "marketFirst",
+        label: "Market First",
+        summary: "Rush market first to accelerate trade cashflow.",
+        order: ["market", "townhall", "farm"]
+      },
+      farmFirst: {
+        key: "farmFirst",
+        label: "Farm First",
+        summary: "Secure food pipeline early, then market.",
+        order: ["farm", "townhall", "market"]
+      },
+      townhallFirst: {
+        key: "townhallFirst",
+        label: "Townhall First",
+        summary: "Prioritize civic progression before economy specialization.",
+        order: ["townhall", "farm", "market"]
+      }
+    });
+    const SCORE_RULES = Object.freeze({
+      cashWeight: 0.35,
+      survivalBonus: 140,
+      deathPenalty: 70
+    });
     let LIFE_SPAN_DAYS = 360;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const PLAYER_COLORS = Object.freeze([
@@ -226,10 +299,35 @@
         totalDays: CHALLENGE_TOTAL_DAYS,
         targetYears: CHALLENGE_YEARS,
         finished: false,
+        postMode: false,
         finishedDay: null,
         finalMoney: 0,
         bestMoney: 0
       };
+    }
+
+    function normalizePlayerStrategy(value) {
+      return Object.prototype.hasOwnProperty.call(PLAYER_STRATEGIES, value) ? value : "balanced";
+    }
+
+    function normalizeBuildPlan(value) {
+      return Object.prototype.hasOwnProperty.call(BUILD_PLANS, value) ? value : "balanced";
+    }
+
+    function playerStrategyConfig() {
+      return PLAYER_STRATEGIES[normalizePlayerStrategy(state && state.playerStrategy)] || PLAYER_STRATEGIES.balanced;
+    }
+
+    function buildPlanConfig() {
+      return BUILD_PLANS[normalizeBuildPlan(state && state.buildPlan)] || BUILD_PLANS.balanced;
+    }
+
+    function heroFinalScore(row) {
+      const earned = Math.max(0, Number(row && row.careerEarnings) || 0);
+      const cash = Math.max(0, Number(row && row.money) || 0);
+      const alive = Boolean(row && row.alive);
+      const survival = alive ? SCORE_RULES.survivalBonus : -SCORE_RULES.deathPenalty;
+      return Math.max(0, Math.round(earned + cash * SCORE_RULES.cashWeight + survival));
     }
 
     function createInitialState(randomized) {
@@ -266,6 +364,8 @@
         speed: 1,
         absHours: 0,
         day: 1,
+        playerStrategy: "balanced",
+        buildPlan: "balanced",
         challenge: createChallengeState(1),
         selectedId: null,
         selectedBuilding: null,
@@ -321,6 +421,11 @@
             food: [],
             logs: [],
             herbs: []
+          },
+          history: {
+            food: { prices: [], demand: [], stocks: [] },
+            logs: { prices: [], demand: [], stocks: [] },
+            herbs: { prices: [], demand: [], stocks: [] }
           }
         },
         resources: {
@@ -630,7 +735,13 @@
           reason: String(g.reason || "unknown")
         }));
       const all = [...livingHeroes, ...fallenHeroes];
+      for (const row of all) {
+        row.score = heroFinalScore(row);
+      }
       all.sort((a, b) => {
+        if ((b.score || 0) !== (a.score || 0)) {
+          return (b.score || 0) - (a.score || 0);
+        }
         if (b.careerEarnings !== a.careerEarnings) {
           return b.careerEarnings - a.careerEarnings;
         }
@@ -647,6 +758,19 @@
       if (!Array.isArray(challenge.results) || challenge.results.length === 0) {
         challenge.results = buildChallengeResults();
       }
+      challenge.results = challenge.results.map((row) => ({
+        ...row,
+        score: Number.isFinite(row && row.score) ? Math.round(row.score) : heroFinalScore(row)
+      }));
+      challenge.results.sort((a, b) => {
+        if ((b.score || 0) !== (a.score || 0)) {
+          return (b.score || 0) - (a.score || 0);
+        }
+        if ((b.careerEarnings || 0) !== (a.careerEarnings || 0)) {
+          return (b.careerEarnings || 0) - (a.careerEarnings || 0);
+        }
+        return (b.money || 0) - (a.money || 0);
+      });
       challenge.winner = challenge.results.length > 0 ? challenge.results[0] : null;
     }
 
@@ -657,6 +781,7 @@
       }
       trackChallengeMoneyPeak();
       challenge.finished = true;
+      challenge.postMode = false;
       challenge.finishedDay = Math.max(1, Math.floor(state.day));
       challenge.finalMoney = Math.round(totalMoneyScore());
       challenge.bestMoney = Math.max(Number(challenge.bestMoney) || 0, challenge.finalMoney);
@@ -665,11 +790,11 @@
       state.paused = true;
       addEvent(`5-year challenge complete. Final money: $${challenge.finalMoney}. Peak money: $${challenge.bestMoney}.`);
       if (challenge.winner) {
-        addEvent(`Winner: ${challenge.winner.name} with $${challenge.winner.careerEarnings} earned.`);
+        addEvent(`Winner: ${challenge.winner.name} with score ${challenge.winner.score} (earned $${challenge.winner.careerEarnings}).`);
       }
       for (let i = 0; i < challenge.results.length; i++) {
         const row = challenge.results[i];
-        addEvent(`#${i + 1} ${row.name}: earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}.`);
+        addEvent(`#${i + 1} ${row.name}: score ${row.score}, earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}.`);
       }
       syncUiToggles();
     }
@@ -755,6 +880,24 @@
         food: Array.isArray(incomingConsigned.food) ? incomingConsigned.food : [],
         logs: Array.isArray(incomingConsigned.logs) ? incomingConsigned.logs : [],
         herbs: Array.isArray(incomingConsigned.herbs) ? incomingConsigned.herbs : []
+      };
+      const incomingHistory = incomingMarket.history && typeof incomingMarket.history === "object" ? incomingMarket.history : {};
+      state.market.history = {
+        food: {
+          prices: Array.isArray(incomingHistory.food && incomingHistory.food.prices) ? incomingHistory.food.prices.slice(-MARKET_HISTORY_DAYS) : [],
+          demand: Array.isArray(incomingHistory.food && incomingHistory.food.demand) ? incomingHistory.food.demand.slice(-MARKET_HISTORY_DAYS) : [],
+          stocks: Array.isArray(incomingHistory.food && incomingHistory.food.stocks) ? incomingHistory.food.stocks.slice(-MARKET_HISTORY_DAYS) : []
+        },
+        logs: {
+          prices: Array.isArray(incomingHistory.logs && incomingHistory.logs.prices) ? incomingHistory.logs.prices.slice(-MARKET_HISTORY_DAYS) : [],
+          demand: Array.isArray(incomingHistory.logs && incomingHistory.logs.demand) ? incomingHistory.logs.demand.slice(-MARKET_HISTORY_DAYS) : [],
+          stocks: Array.isArray(incomingHistory.logs && incomingHistory.logs.stocks) ? incomingHistory.logs.stocks.slice(-MARKET_HISTORY_DAYS) : []
+        },
+        herbs: {
+          prices: Array.isArray(incomingHistory.herbs && incomingHistory.herbs.prices) ? incomingHistory.herbs.prices.slice(-MARKET_HISTORY_DAYS) : [],
+          demand: Array.isArray(incomingHistory.herbs && incomingHistory.herbs.demand) ? incomingHistory.herbs.demand.slice(-MARKET_HISTORY_DAYS) : [],
+          stocks: Array.isArray(incomingHistory.herbs && incomingHistory.herbs.stocks) ? incomingHistory.herbs.stocks.slice(-MARKET_HISTORY_DAYS) : []
+        }
       };
 
       state.resources = { ...base.resources, ...incomingResources };
@@ -863,19 +1006,22 @@
         totalDays: challengeTotalDays,
         targetYears: CHALLENGE_YEARS,
         finished: Boolean(incomingChallenge.finished),
+        postMode: Boolean(incomingChallenge.postMode),
         finishedDay: Number.isFinite(incomingChallenge.finishedDay) ? Math.max(1, Math.floor(incomingChallenge.finishedDay)) : null,
         finalMoney: Math.max(0, Math.round(Number(incomingChallenge.finalMoney) || 0)),
         bestMoney: Math.max(0, Math.round(Number(incomingChallenge.bestMoney) || 0)),
         results: Array.isArray(incomingChallenge.results) ? incomingChallenge.results : [],
         winner: incomingChallenge.winner && typeof incomingChallenge.winner === "object" ? incomingChallenge.winner : null
       };
+      state.playerStrategy = normalizePlayerStrategy(incoming.playerStrategy);
+      state.buildPlan = normalizeBuildPlan(incoming.buildPlan);
       applyWorldSettings(incoming.worldSettings || state.worldSettings);
       normalizeObjectTextureSpacing();
       computeDemandAndPrices();
       rebalanceJobs();
       updateMoneyChallengeProgress();
       if (state.challenge.finished) {
-        state.paused = true;
+        state.paused = !state.challenge.postMode;
         ensureChallengeResults();
       }
       syncUiToggles();
@@ -903,6 +1049,29 @@
       }
       if (ui.worldSettingsModal) {
         ui.worldSettingsModal.classList.toggle("hidden", !uiState.worldSettingsOpen);
+      }
+      if (ui.strategyBalancedBtn && ui.strategyProfitBtn && ui.strategySafeBtn) {
+        const strategy = normalizePlayerStrategy(state.playerStrategy);
+        ui.strategyBalancedBtn.classList.toggle("active", strategy === "balanced");
+        ui.strategyProfitBtn.classList.toggle("active", strategy === "profit");
+        ui.strategySafeBtn.classList.toggle("active", strategy === "safe");
+      }
+      if (ui.strategySummary) {
+        ui.strategySummary.textContent = playerStrategyConfig().summary;
+      }
+      if (ui.buildBalancedBtn && ui.buildMarketBtn && ui.buildFarmBtn && ui.buildTownhallBtn) {
+        const plan = normalizeBuildPlan(state.buildPlan);
+        ui.buildBalancedBtn.classList.toggle("active", plan === "balanced");
+        ui.buildMarketBtn.classList.toggle("active", plan === "marketFirst");
+        ui.buildFarmBtn.classList.toggle("active", plan === "farmFirst");
+        ui.buildTownhallBtn.classList.toggle("active", plan === "townhallFirst");
+      }
+      if (ui.buildSummary) {
+        ui.buildSummary.textContent = buildPlanConfig().summary;
+      }
+      if (ui.postChallengeBtn) {
+        const canContinue = Boolean(state.challenge && state.challenge.finished && !state.challenge.postMode);
+        ui.postChallengeBtn.classList.toggle("hidden", !canContinue);
       }
       document.body.classList.toggle("modal-open", uiState.worldSettingsOpen);
     }
@@ -954,6 +1123,24 @@
         resetMovementKeys();
         isDragging = false;
         canvas.classList.remove("is-grabbing");
+      }
+      syncUiToggles();
+    }
+
+    function setPlayerStrategy(nextStrategy, announce = true) {
+      const key = normalizePlayerStrategy(nextStrategy);
+      state.playerStrategy = key;
+      if (announce) {
+        addEvent(`Player strategy set: ${PLAYER_STRATEGIES[key].label}.`);
+      }
+      syncUiToggles();
+    }
+
+    function setBuildPlan(nextPlan, announce = true) {
+      const key = normalizeBuildPlan(nextPlan);
+      state.buildPlan = key;
+      if (announce) {
+        addEvent(`Construction plan set: ${BUILD_PLANS[key].label}.`);
       }
       syncUiToggles();
     }
@@ -1047,8 +1234,13 @@
 
     function startNewSimulation() {
       const currentSettings = cloneWorldSettings(sanitizeWorldSettings(runtimeWorldSettings()));
+      const currentStrategy = normalizePlayerStrategy(state && state.playerStrategy);
+      const currentBuildPlan = normalizeBuildPlan(state && state.buildPlan);
       state = createInitialState(true);
       applyWorldSettings(currentSettings);
+      state.playerStrategy = currentStrategy;
+      state.buildPlan = currentBuildPlan;
+      state.challenge.postMode = false;
       normalizeObjectTextureSpacing();
       initPopulation(HERO_TARGET_COUNT);
       computeDemandAndPrices();
@@ -1222,12 +1414,47 @@
       }
 
       ui.pauseBtn.addEventListener("click", () => {
-        if (state.challenge && state.challenge.finished) {
+        if (state.challenge && state.challenge.finished && !state.challenge.postMode) {
           return;
         }
         state.paused = !state.paused;
         ui.pauseBtn.textContent = state.paused ? "Resume" : "Pause";
       });
+
+      if (ui.strategyBalancedBtn) {
+        ui.strategyBalancedBtn.addEventListener("click", () => setPlayerStrategy("balanced"));
+      }
+      if (ui.strategyProfitBtn) {
+        ui.strategyProfitBtn.addEventListener("click", () => setPlayerStrategy("profit"));
+      }
+      if (ui.strategySafeBtn) {
+        ui.strategySafeBtn.addEventListener("click", () => setPlayerStrategy("safe"));
+      }
+
+      if (ui.buildBalancedBtn) {
+        ui.buildBalancedBtn.addEventListener("click", () => setBuildPlan("balanced"));
+      }
+      if (ui.buildMarketBtn) {
+        ui.buildMarketBtn.addEventListener("click", () => setBuildPlan("marketFirst"));
+      }
+      if (ui.buildFarmBtn) {
+        ui.buildFarmBtn.addEventListener("click", () => setBuildPlan("farmFirst"));
+      }
+      if (ui.buildTownhallBtn) {
+        ui.buildTownhallBtn.addEventListener("click", () => setBuildPlan("townhallFirst"));
+      }
+
+      if (ui.postChallengeBtn) {
+        ui.postChallengeBtn.addEventListener("click", () => {
+          if (!state.challenge || !state.challenge.finished) {
+            return;
+          }
+          state.challenge.postMode = true;
+          state.paused = false;
+          addEvent("Post-challenge sandbox mode enabled.");
+          syncUiToggles();
+        });
+      }
 
       ui.speed1Btn.addEventListener("click", () => {
         state.speed = 1;
@@ -2027,6 +2254,8 @@
     }
 
     function pickWorkTask(person) {
+      const strategy = playerStrategyConfig();
+
       function sellUnitPrice(good) {
         const price = Number(state.market.prices[good]) || BASE_PRICES[good] || 1;
         const factor = good === "logs" || good === "herbs" ? GAMEPLAY.trade.sellRawFactor : GAMEPLAY.trade.sellCraftFactor;
@@ -2060,7 +2289,7 @@
         }
         const gross = yieldUnits * sellUnitPrice(good);
         const hours = Math.max(0.3, duration + travelHours(target));
-        return gross / hours;
+        return (gross / hours) * strategy.profitBias;
       }
 
       const options = [];
@@ -2116,7 +2345,7 @@
           const strategicValue = sellUnitPrice("food") * (0.75 + fertilityGap * 2.6);
           const hours = Math.max(0.3, 1.8 + travelHours(tendTarget));
           options.push({
-            score: strategicValue / hours,
+            score: (strategicValue / hours) * strategy.profitBias,
             task: () => createTask("tend_farm", tendTarget, 1.8)
           });
         }
@@ -2131,10 +2360,11 @@
     }
 
     function decideTask(person) {
-      const lowHealth = person.health <= 52;
-      const criticalHealth = person.health < 30;
-      const highHunger = person.hunger >= GAMEPLAY.needs.eatDecisionHunger;
-      const criticalHunger = person.hunger > 70;
+      const strategy = playerStrategyConfig();
+      const lowHealth = person.health <= clamp(52 + strategy.healthShift, 25, 78);
+      const criticalHealth = person.health < clamp(30 + strategy.healthShift * 0.6, 14, 54);
+      const highHunger = person.hunger >= clamp(GAMEPLAY.needs.eatDecisionHunger + strategy.hungerShift, 14, 80);
+      const criticalHunger = person.hunger > clamp(70 + strategy.hungerShift, 34, 96);
       const criticalNeeds = criticalHunger || criticalHealth;
       const marketOpen = isBuildingBuilt("market");
       const canBuyFood = MECHANICS.trade && marketOpen && state.market.stocks.food > 0 && person.money >= state.market.prices.food;
@@ -2196,6 +2426,17 @@
         const foodTask = foodPriorityTask();
         if (foodTask) {
           return foodTask;
+        }
+      }
+
+      if (strategy.key === "safe" && (person.hunger >= 60 || person.health <= 42)) {
+        const safeFood = foodPriorityTask();
+        if (safeFood) {
+          return safeFood;
+        }
+        const safeHealth = healthPriorityTask();
+        if (safeHealth) {
+          return safeHealth;
         }
       }
 
@@ -2466,6 +2707,7 @@
       if (!MECHANICS.needs) {
         return;
       }
+      const strategy = playerStrategyConfig();
 
       const workLoad = person.task && person.task.type !== "idle" ? 1 : 0;
       person.hunger = clamp(person.hunger + dtHours * (GAMEPLAY.needs.hungerBase + workLoad * GAMEPLAY.needs.hungerWorkBonus), 0, 100);
@@ -2513,7 +2755,7 @@
       const ignoringNeeds = urgentNeeds && !safeTasks.has(taskType);
       if (ignoringNeeds) {
         person.ignoredNeedsHours = Math.min(72, (Number(person.ignoredNeedsHours) || 0) + dtHours);
-        const extraRisk = dtHours * (0.7 + person.ignoredNeedsHours * 0.05);
+        const extraRisk = dtHours * (0.7 + person.ignoredNeedsHours * 0.05) * strategy.riskPenalty;
         person.health = clamp(person.health - extraRisk, 0, 100);
         if (person.needsWarningCooldown <= 0) {
           addEvent(`${person.name} is ignoring critical needs and may die.`);
@@ -2614,6 +2856,68 @@
         const smoothed = prevPrice * oldWeight + targetPrice * (1 - oldWeight);
         state.market.prices[good] = Math.max(1, Math.round(smoothed));
       }
+    }
+
+    function ensureMarketHistory() {
+      if (!state.market.history || typeof state.market.history !== "object") {
+        state.market.history = {};
+      }
+      for (const good of GOODS) {
+        if (!state.market.history[good] || typeof state.market.history[good] !== "object") {
+          state.market.history[good] = { prices: [], demand: [], stocks: [] };
+        }
+        for (const key of ["prices", "demand", "stocks"]) {
+          if (!Array.isArray(state.market.history[good][key])) {
+            state.market.history[good][key] = [];
+          }
+        }
+      }
+    }
+
+    function pushHistory(historyArray, value) {
+      historyArray.push(Math.max(0, Math.round(Number(value) || 0)));
+      if (historyArray.length > MARKET_HISTORY_DAYS) {
+        historyArray.splice(0, historyArray.length - MARKET_HISTORY_DAYS);
+      }
+    }
+
+    function captureDailyMarketHistory() {
+      ensureMarketHistory();
+      for (const good of GOODS) {
+        pushHistory(state.market.history[good].prices, state.market.prices[good]);
+        pushHistory(state.market.history[good].demand, state.market.demand[good]);
+        pushHistory(state.market.history[good].stocks, state.market.stocks[good]);
+      }
+    }
+
+    function trendArrow(series) {
+      if (!Array.isArray(series) || series.length < 2) {
+        return "→";
+      }
+      const prev = Number(series[series.length - 2]) || 0;
+      const last = Number(series[series.length - 1]) || 0;
+      if (last > prev) {
+        return "↑";
+      }
+      if (last < prev) {
+        return "↓";
+      }
+      return "→";
+    }
+
+    function sparkline(series) {
+      if (!Array.isArray(series) || series.length === 0) {
+        return "-";
+      }
+      const glyphs = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+      const minV = Math.min(...series);
+      const maxV = Math.max(...series);
+      const span = Math.max(1, maxV - minV);
+      return series.map((raw) => {
+        const value = Number(raw) || 0;
+        const idx = Math.max(0, Math.min(glyphs.length - 1, Math.round(((value - minV) / span) * (glyphs.length - 1))));
+        return glyphs[idx];
+      }).join("");
     }
 
     function rebalanceJobs() {
@@ -2912,30 +3216,21 @@
       }
 
       let builtToday = false;
-      if (!isBuildingBuilt("townhall")) {
-        const project = ensureConstructionProject("townhall", BUILD_COSTS.townhall, "Town Hall");
+      const plan = buildPlanConfig();
+      const prioritizedCore = plan.order;
+      for (const key of prioritizedCore) {
+        if (isBuildingBuilt(key)) {
+          continue;
+        }
+        const label = key === "townhall" ? "Town Hall" : (key.charAt(0).toUpperCase() + key.slice(1));
+        const project = ensureConstructionProject(key, BUILD_COSTS[key], label);
         builtToday = investIntoProject(project);
         if (builtToday) {
-          state.city.built.townhall = true;
-          state.city.construction.townhall = null;
-          addEvent("Town Hall was built.");
+          state.city.built[key] = true;
+          state.city.construction[key] = null;
+          addEvent(`${label} was built.`);
         }
-      } else if (!isBuildingBuilt("market")) {
-        const project = ensureConstructionProject("market", BUILD_COSTS.market, "Market");
-        builtToday = investIntoProject(project);
-        if (builtToday) {
-          state.city.built.market = true;
-          state.city.construction.market = null;
-          addEvent("Market was built.");
-        }
-      } else if (!isBuildingBuilt("farm")) {
-        const project = ensureConstructionProject("farm", BUILD_COSTS.farm, "Farm");
-        builtToday = investIntoProject(project);
-        if (builtToday) {
-          state.city.built.farm = true;
-          state.city.construction.farm = null;
-          addEvent("Farm was built.");
-        }
+        break;
       }
 
       const heroCount = state.people.filter((p) => p.isHero).length;
@@ -2978,6 +3273,7 @@
           addEvent(`Monthly taxes collected: $${taxes}.`);
         }
       }
+      captureDailyMarketHistory();
       updateMoneyChallengeProgress();
     }
 
@@ -3032,7 +3328,6 @@
 
     function updateUI() {
       updateMoneyChallengeProgress();
-      const peopleCash = state.people.reduce((sum, p) => sum + (Number(p.money) || 0), 0);
       const totalWorldMoney = Math.round(totalMoneyScore());
       const challenge = moneyChallengeState();
       ensureChallengeResults();
@@ -3044,20 +3339,21 @@
       ui.dayStat.textContent = String(state.day);
       ui.marketCashStat.textContent = `$${Math.round(state.bank.treasury)}`;
       ui.worldMoneyStat.textContent = `$${totalWorldMoney}`;
+      const challengeLocked = Boolean(challenge.finished && !challenge.postMode);
       if (ui.addPersonBtn) {
-        ui.addPersonBtn.disabled = state.people.length >= HERO_TARGET_COUNT || Boolean(challenge.finished);
+        ui.addPersonBtn.disabled = state.people.length >= HERO_TARGET_COUNT || challengeLocked;
       }
       if (ui.pauseBtn) {
-        ui.pauseBtn.disabled = Boolean(challenge.finished);
+        ui.pauseBtn.disabled = challengeLocked;
       }
       if (ui.speed1Btn) {
-        ui.speed1Btn.disabled = Boolean(challenge.finished);
+        ui.speed1Btn.disabled = challengeLocked;
       }
       if (ui.speed3Btn) {
-        ui.speed3Btn.disabled = Boolean(challenge.finished);
+        ui.speed3Btn.disabled = challengeLocked;
       }
       if (ui.speed6Btn) {
-        ui.speed6Btn.disabled = Boolean(challenge.finished);
+        ui.speed6Btn.disabled = challengeLocked;
       }
 
       const hh = formatHour(currentHour());
@@ -3072,31 +3368,75 @@
       const wildHerbs = state.resources.wild.reduce((sum, p) => sum + p.herbs, 0);
       const inflation = clamp(Number(state.economy && state.economy.inflation) || 1, 1, 25);
       const printedTotal = Math.round(Number(state.economy && state.economy.printedTotal) || 0);
+      const strategyLabel = playerStrategyConfig().label;
+      const buildPlanLabel = buildPlanConfig().label;
       const resultsHtml = challenge.finished && challenge.winner
-        ? `<div><b>Winner:</b> ${challenge.winner.name} (earned $${challenge.winner.careerEarnings}, cash $${challenge.winner.money})</div>
-           ${challenge.results.map((row, idx) => `<div>#${idx + 1} ${row.name}: earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}</div>`).join("")}`
+        ? `<div><b>Winner:</b> ${challenge.winner.name} (score ${challenge.winner.score}, earned $${challenge.winner.careerEarnings}, cash $${challenge.winner.money})</div>
+           ${challenge.results.map((row, idx) => `<div>#${idx + 1} ${row.name}: score ${row.score}, earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died (${row.reason})`}</div>`).join("")}`
         : "";
       ui.overlayText.innerHTML = `
         <div><b>Y${year} M${month} D${dayOfMonth}</b> ${hh} | Population: ${state.people.length}</div>
         <div>Stage: <b>${state.city.stage}</b> | Bank: $${Math.round(state.bank.treasury)} | Inflation: x${inflation.toFixed(2)}</div>
+        <div>Strategy: <b>${strategyLabel}</b> | Build plan: <b>${buildPlanLabel}</b></div>
         <div>Money printed by state: <b>$${printedTotal}</b></div>
         <div>Goal: maximize money in ${challenge.targetYears} years | Progress: <b>${challengeProgress}%</b> (${elapsedDays}/${challenge.totalDays} days, ${daysLeft} left)</div>
-        <div>${challenge.finished ? `Challenge complete. Final $${challenge.finalMoney}, peak $${challenge.bestMoney}.` : `Current money: $${totalWorldMoney} | Best so far: $${challenge.bestMoney}`}</div>
+        <div>${challenge.finished ? `Challenge complete. Final $${challenge.finalMoney}, peak $${challenge.bestMoney}.${challenge.postMode ? " Sandbox mode active." : ""}` : `Current money: $${totalWorldMoney} | Best so far: $${challenge.bestMoney}`}</div>
         ${resultsHtml}
         <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>
         <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
 
       ui.marketTable.innerHTML = "";
+      ensureMarketHistory();
       for (const good of GOODS) {
+        const history = state.market.history[good] || { prices: [], demand: [], stocks: [] };
         const tr = document.createElement("tr");
         const td1 = document.createElement("td");
         const td2 = document.createElement("td");
-        td1.textContent = `${good} ($${state.market.prices[good]})`;
-        td2.textContent = `${state.market.stocks[good].toFixed(0)} / demand ${state.market.demand[good].toFixed(0)}`;
+        const td3 = document.createElement("td");
+        td1.innerHTML = `${good} ($${state.market.prices[good]})<div class="mini">P${trendArrow(history.prices)} D${trendArrow(history.demand)} S${trendArrow(history.stocks)}</div>`;
+        td2.innerHTML = `${state.market.stocks[good].toFixed(0)} / demand ${state.market.demand[good].toFixed(0)}<div class="mini trend-line">${sparkline(history.prices)} | ${sparkline(history.demand)} | ${sparkline(history.stocks)}</div>`;
+        td3.textContent = `${history.prices.length}/${MARKET_HISTORY_DAYS}d`;
         tr.appendChild(td1);
         tr.appendChild(td2);
+        tr.appendChild(td3);
         ui.marketTable.appendChild(tr);
+      }
+
+      if (ui.scoreMeta) {
+        ui.scoreMeta.textContent = `Score = earned + ${Math.round(SCORE_RULES.cashWeight * 100)}% cash + ${SCORE_RULES.survivalBonus} survival bonus (${SCORE_RULES.deathPenalty} death penalty).`;
+      }
+      if (ui.scoreBoard) {
+        const livingHeroRows = state.people
+          .filter((p) => p.isHero)
+          .map((p) => ({
+            name: p.name,
+            careerEarnings: Math.max(0, Math.round(Number(p.careerEarnings) || 0)),
+            money: Math.max(0, Math.round(Number(p.money) || 0)),
+            alive: true,
+            reason: ""
+          }));
+        const fallenHeroRows = state.graves
+          .filter((g) => g && g.isHero)
+          .map((g) => ({
+            name: String(g.name || "Unknown hero"),
+            careerEarnings: Math.max(0, Math.round(Number(g.careerEarnings) || 0)),
+            money: Math.max(0, Math.round(Number(g.moneyAtDeath) || 0)),
+            alive: false,
+            reason: String(g.reason || "unknown")
+          }));
+        const scoreRows = [...livingHeroRows, ...fallenHeroRows]
+          .map((row) => ({ ...row, score: heroFinalScore(row) }))
+          .sort((a, b) => {
+            if (b.score !== a.score) {
+              return b.score - a.score;
+            }
+            return b.careerEarnings - a.careerEarnings;
+          })
+          .slice(0, HERO_TARGET_COUNT);
+        ui.scoreBoard.innerHTML = scoreRows.length > 0
+          ? scoreRows.map((row, idx) => `<div>#${idx + 1} ${row.name}: <b>${row.score}</b> (earned $${row.careerEarnings}, cash $${row.money}${row.alive ? "" : `, died ${row.reason}`})</div>`).join("")
+          : "<div>No hero scores yet.</div>";
       }
 
       const selected = getPerson(state.selectedId);
@@ -4410,11 +4750,20 @@
           health: Number(p.health.toFixed(1)),
           money: Math.round(Number(p.money) || 0),
           earned: Math.round(Number(p.careerEarnings) || 0),
+          score: heroFinalScore({
+            careerEarnings: Math.round(Number(p.careerEarnings) || 0),
+            money: Math.round(Number(p.money) || 0),
+            alive: true
+          }),
           task: p.task ? p.task.type : "none"
         }));
       const payload = {
         mode: challenge.finished ? "challenge_complete" : (state.paused ? "paused" : "running"),
         coordinateSystem: "origin top-left; x right; y down",
+        player: {
+          strategy: normalizePlayerStrategy(state.playerStrategy),
+          buildPlan: normalizeBuildPlan(state.buildPlan)
+        },
         time: {
           day: state.day,
           hour: formatHour(currentHour())
@@ -4425,12 +4774,14 @@
           daysLeft: challengeDaysLeft(),
           progress: Number(challengeProgressRatio().toFixed(3)),
           finished: challenge.finished,
+          postMode: Boolean(challenge.postMode),
           currentMoney: Math.round(totalMoneyScore()),
           bestMoney: Math.round(challenge.bestMoney || 0),
           finalMoney: Math.round(challenge.finalMoney || 0),
           winner: challenge.winner
             ? {
               name: challenge.winner.name,
+              score: challenge.winner.score,
               earned: challenge.winner.careerEarnings,
               cash: challenge.winner.money
             }
