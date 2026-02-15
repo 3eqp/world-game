@@ -116,6 +116,7 @@
     };
 
     let state = createInitialState(false);
+    const visualEffects = [];
     const uiState = {
       toolsOpen: false,
       resourceView: "map",
@@ -131,6 +132,7 @@
     let isDragging = false;
     let dragLastX = 0;
     let dragLastY = 0;
+    let hoverClickable = false;
     const keyState = {
       KeyW: false,
       KeyA: false,
@@ -140,6 +142,7 @@
     let LIFE_SPAN_DAYS = 100;
     const PROFESSIONS = ["forager", "farmer", "woodcutter"];
     const SIMPLE_GRAPHICS = true;
+    const PERSON_CLICK_RADIUS = 20;
     const ROAD = {
       cell: 16,
       clickRadius: 12,
@@ -271,9 +274,15 @@
           furnitureLevel: Math.round(5 * resourceScale),
           companies: {},
           built: {
-            townhall: true,
-            market: true,
-            farm: true
+            townhall: false,
+            market: false,
+            farm: false
+          },
+          construction: {
+            townhall: null,
+            market: null,
+            farm: null,
+            houses: []
           }
         },
         market: {
@@ -293,6 +302,10 @@
             furniture: 0,
             herbs: 10,
             medkits: 4
+          },
+          dailyNeed: {
+            food: 0,
+            medkits: 0
           },
           prices: { ...BASE_PRICES }
         },
@@ -734,6 +747,26 @@
       state.eventLog = state.eventLog.slice(0, 28);
     }
 
+    function addVisualEffect(type, x, y, ttl = 1.6) {
+      visualEffects.push({
+        type,
+        x,
+        y,
+        ttl,
+        maxTtl: ttl
+      });
+    }
+
+    function updateVisualEffects(dtSec) {
+      for (let i = visualEffects.length - 1; i >= 0; i--) {
+        const fx = visualEffects[i];
+        fx.ttl -= dtSec;
+        if (fx.ttl <= 0) {
+          visualEffects.splice(i, 1);
+        }
+      }
+    }
+
     function currentHour() {
       return state.absHours % 24;
     }
@@ -771,17 +804,27 @@
           farm: Boolean(incomingBuilt.farm)
         };
       } else {
-        const legacyBuilt = true;
+        const legacyBuilt = false;
         state.city.built = {
           townhall: legacyBuilt,
           market: legacyBuilt,
           farm: legacyBuilt
         };
       }
+      const incomingConstruction = incomingCity.construction && typeof incomingCity.construction === "object"
+        ? incomingCity.construction
+        : {};
+      state.city.construction = {
+        townhall: incomingConstruction.townhall && typeof incomingConstruction.townhall === "object" ? incomingConstruction.townhall : null,
+        market: incomingConstruction.market && typeof incomingConstruction.market === "object" ? incomingConstruction.market : null,
+        farm: incomingConstruction.farm && typeof incomingConstruction.farm === "object" ? incomingConstruction.farm : null,
+        houses: Array.isArray(incomingConstruction.houses) ? incomingConstruction.houses : []
+      };
 
       state.market = { ...base.market, ...incomingMarket };
       state.market.stocks = { ...base.market.stocks, ...(incomingMarket.stocks || {}) };
       state.market.demand = { ...base.market.demand, ...(incomingMarket.demand || {}) };
+      state.market.dailyNeed = { ...base.market.dailyNeed, ...(incomingMarket.dailyNeed || {}) };
       state.market.prices = { ...base.market.prices, ...(incomingMarket.prices || {}) };
 
       state.resources = { ...base.resources, ...incomingResources };
@@ -1257,6 +1300,7 @@
         state.city.treasury += transfer;
         person.money = 0;
       }
+      addVisualEffect("death", person.x, person.y - 10, 1.9);
       state.graves.push({ name: person.name, ageDays: person.ageDays, reason });
       removePersonById(person.id, reason);
       if (transfer > 0) {
@@ -1442,10 +1486,17 @@
       });
 
       window.addEventListener("mousemove", (ev) => {
+        const p = eventToCanvasPoint(ev);
+        const worldPos = camera.screenToWorld(p.x, p.y);
+        hoverClickable = Boolean(findPersonNear(worldPos.x, worldPos.y, PERSON_CLICK_RADIUS) || findMapObjectAt(worldPos.x, worldPos.y));
+        if (isDragging) {
+          canvas.style.cursor = "grabbing";
+        } else {
+          canvas.style.cursor = hoverClickable ? "pointer" : "grab";
+        }
         if (!isDragging) {
           return;
         }
-        const p = eventToCanvasPoint(ev);
         const dx = p.x - dragLastX;
         const dy = p.y - dragLastY;
         if (Math.abs(dx) + Math.abs(dy) > 1) {
@@ -1459,12 +1510,21 @@
       window.addEventListener("mouseup", () => {
         isDragging = false;
         canvas.classList.remove("is-grabbing");
+        canvas.style.cursor = hoverClickable ? "pointer" : "grab";
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        hoverClickable = false;
+        if (!isDragging) {
+          canvas.style.cursor = "grab";
+        }
       });
 
       window.addEventListener("blur", () => {
         resetMovementKeys();
         isDragging = false;
         canvas.classList.remove("is-grabbing");
+        canvas.style.cursor = "grab";
       });
 
       document.addEventListener("visibilitychange", () => {
@@ -1472,6 +1532,7 @@
           resetMovementKeys();
           isDragging = false;
           canvas.classList.remove("is-grabbing");
+          canvas.style.cursor = "grab";
         }
       });
 
@@ -1524,15 +1585,7 @@
         const wx = worldPos.x;
         const wy = worldPos.y;
 
-        let chosen = null;
-        let best = 999999;
-        for (const p of state.people) {
-          const d = Math.hypot(p.x - wx, p.y - wy);
-          if (d < 12 && d < best) {
-            best = d;
-            chosen = p;
-          }
-        }
+        const chosen = findPersonNear(wx, wy, PERSON_CLICK_RADIUS);
 
         if (chosen) {
           state.selectedId = chosen.id;
@@ -1544,7 +1597,7 @@
         const objectId = findMapObjectAt(wx, wy);
         if (objectId) {
           state.selectedId = null;
-          if (objectId.startsWith("building:") || objectId.startsWith("house:")) {
+          if (objectId.startsWith("building:") || objectId.startsWith("house:") || objectId.startsWith("construction:")) {
             state.selectedBuilding = objectId;
             state.selectedObject = null;
           } else {
@@ -1561,6 +1614,7 @@
 
       window.addEventListener("resize", resizeCanvas);
       syncUiToggles();
+      canvas.style.cursor = "grab";
     }
 
     function eventToCanvasPoint(ev) {
@@ -1576,6 +1630,19 @@
 
     function getPerson(id) {
       return state.people.find((p) => p.id === id) || null;
+    }
+
+    function findPersonNear(x, y, radius = PERSON_CLICK_RADIUS) {
+      let chosen = null;
+      let best = Infinity;
+      for (const person of state.people) {
+        const d = Math.hypot(person.x - x, person.y - y);
+        if (d <= radius && d < best) {
+          best = d;
+          chosen = person;
+        }
+      }
+      return chosen;
     }
 
     function isBuildingBuilt(key) {
@@ -1616,6 +1683,23 @@
     }
 
     function findBuildingAt(x, y) {
+      if (state.city && state.city.construction) {
+        const coreKeys = ["townhall", "market", "farm"];
+        for (const key of coreKeys) {
+          const p = state.city.construction[key];
+          if (p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+            return `construction:${key}`;
+          }
+        }
+        if (Array.isArray(state.city.construction.houses)) {
+          for (let i = 0; i < state.city.construction.houses.length; i++) {
+            const p = state.city.construction.houses[i];
+            if (p && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+              return `construction:house:${i}`;
+            }
+          }
+        }
+      }
       for (let i = 0; i < state.city.houses.length; i++) {
         const h = state.city.houses[i];
         if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
@@ -2359,10 +2443,15 @@
       const weakPeople = state.people.filter((p) => p.health <= 50).length;
       const hungerPressure = pop > 0 ? hungryPeople / pop : 0;
       const healthPressure = pop > 0 ? weakPeople / pop : 0;
-      const foodNeed = Math.ceil(pop * (GAMEPLAY.marketModel.foodPerPopBase + hungerPressure * GAMEPLAY.marketModel.foodHungerFactor) + 4);
+      const dailyFoodNeed = Math.ceil(pop * (1.2 + hungerPressure * 1.4) + 2);
+      const dailyMedkitsNeed = Math.ceil(pop * 0.08 + weakPeople * 0.32 + healthPressure * pop * 0.22);
+      state.market.dailyNeed.food = Math.max(0, dailyFoodNeed);
+      state.market.dailyNeed.medkits = Math.max(0, dailyMedkitsNeed);
+
+      const foodNeed = Math.max(dailyFoodNeed, Math.ceil(pop * (GAMEPLAY.marketModel.foodPerPopBase + hungerPressure * GAMEPLAY.marketModel.foodHungerFactor) + 4));
       const logsNeed = Math.ceil(8 + constructionNeed * 8 + pop * GAMEPLAY.marketModel.logsPerPop);
       const herbsNeed = Math.ceil(pop * GAMEPLAY.marketModel.herbsPerPop + weakPeople * 0.9 + hungryPeople * 0.2);
-      const medkitsNeed = Math.ceil(pop * GAMEPLAY.marketModel.medkitsPerPop + weakPeople * 0.7 + healthPressure * pop * 0.45);
+      const medkitsNeed = Math.max(dailyMedkitsNeed, Math.ceil(pop * GAMEPLAY.marketModel.medkitsPerPop + weakPeople * 0.7 + healthPressure * pop * 0.45));
       const planksNeed = Math.ceil(constructionNeed * 2 + logsNeed * GAMEPLAY.marketModel.logsPerPop);
       const furnitureNeed = Math.ceil(houses * 0.4 + pop * 0.08);
 
@@ -2381,10 +2470,14 @@
         const shortage = Math.max(0, demand - supply);
         const shortageRatio = demand / supply;
         const shortageBoost = shortage / demand;
+        const demandLoad = pop > 0 ? demand / pop : demand;
         const targetMultiplier = clamp(
-          0.6 + shortageRatio * GAMEPLAY.marketModel.priceRatioWeight + shortageBoost * GAMEPLAY.marketModel.priceShortageWeight,
+          0.55 +
+            shortageRatio * GAMEPLAY.marketModel.priceRatioWeight +
+            shortageBoost * GAMEPLAY.marketModel.priceShortageWeight +
+            demandLoad * 0.045,
           0.45,
-          3.25
+          4.25
         );
         const targetPrice = basePrice * targetMultiplier;
         const oldWeight = GAMEPLAY.marketModel.priceSmoothingOldWeight;
@@ -2573,30 +2666,89 @@
       farm.fertility = clamp(farm.fertility + REGEN.farmFertility * dtHours, 0, farm.maxFertility);
     }
 
-    function canBuild(cost) {
-      return state.market.stocks.logs >= cost.logs &&
-        state.market.stocks.food >= cost.food &&
-        state.city.treasury >= cost.cash;
+    function createConstructionProject(key, cost, x, y, w, h, label) {
+      return {
+        key,
+        label,
+        x,
+        y,
+        w,
+        h,
+        cost: { ...cost },
+        paid: { logs: 0, food: 0, cash: 0 }
+      };
     }
 
-    function spendBuild(cost) {
-      state.market.stocks.logs -= cost.logs;
-      state.market.stocks.food -= cost.food;
-      state.city.treasury -= cost.cash;
-      state.market.treasury += Math.round(cost.cash * 0.5);
+    function constructionProgress(project) {
+      if (!project || !project.cost) {
+        return 0;
+      }
+      const logsPart = project.cost.logs > 0 ? clamp((project.paid.logs || 0) / project.cost.logs, 0, 1) : 1;
+      const foodPart = project.cost.food > 0 ? clamp((project.paid.food || 0) / project.cost.food, 0, 1) : 1;
+      const cashPart = project.cost.cash > 0 ? clamp((project.paid.cash || 0) / project.cost.cash, 0, 1) : 1;
+      return clamp((logsPart + foodPart + cashPart) / 3, 0, 1);
     }
 
-    function tryBuildBuilding(key, label, cost) {
+    function investIntoProject(project) {
+      if (!project || !project.cost || !project.paid) {
+        return false;
+      }
+      const logsNeed = Math.max(0, project.cost.logs - (project.paid.logs || 0));
+      const foodNeed = Math.max(0, project.cost.food - (project.paid.food || 0));
+      const cashNeed = Math.max(0, project.cost.cash - (project.paid.cash || 0));
+      if (logsNeed <= 0 && foodNeed <= 0 && cashNeed <= 0) {
+        return true;
+      }
+
+      const payLogs = Math.min(logsNeed, Math.max(1, Math.ceil(project.cost.logs * 0.2)), Math.floor(state.market.stocks.logs));
+      const payFood = Math.min(foodNeed, Math.max(1, Math.ceil(project.cost.food * 0.2)), Math.floor(state.market.stocks.food));
+      const payCash = Math.min(cashNeed, Math.max(1, Math.ceil(project.cost.cash * 0.2)), Math.floor(state.city.treasury));
+      if (payLogs > 0) {
+        state.market.stocks.logs -= payLogs;
+        project.paid.logs += payLogs;
+      }
+      if (payFood > 0) {
+        state.market.stocks.food -= payFood;
+        project.paid.food += payFood;
+      }
+      if (payCash > 0) {
+        state.city.treasury -= payCash;
+        state.market.treasury += Math.round(payCash * 0.5);
+        project.paid.cash += payCash;
+      }
+      return constructionProgress(project) >= 0.999;
+    }
+
+    function ensureConstructionProject(key, cost, label) {
       if (isBuildingBuilt(key)) {
-        return false;
+        return null;
       }
-      if (!canBuild(cost)) {
-        return false;
+      if (!state.city.construction || typeof state.city.construction !== "object") {
+        state.city.construction = { townhall: null, market: null, farm: null, houses: [] };
       }
-      spendBuild(cost);
-      state.city.built[key] = true;
-      addEvent(`${label} was built.`);
-      return true;
+      if (!state.city.construction[key]) {
+        const b = BUILDINGS[key];
+        state.city.construction[key] = createConstructionProject(key, cost, b.x, b.y, b.w, b.h, label);
+        addEvent(`${label} construction started.`);
+      }
+      return state.city.construction[key];
+    }
+
+    function ensureHouseConstructionProject() {
+      if (!state.city.construction || typeof state.city.construction !== "object") {
+        state.city.construction = { townhall: null, market: null, farm: null, houses: [] };
+      }
+      if (!Array.isArray(state.city.construction.houses)) {
+        state.city.construction.houses = [];
+      }
+      if (state.city.construction.houses.length > 0) {
+        return state.city.construction.houses[0];
+      }
+      const p = nextHousePosition();
+      const project = createConstructionProject("house", BUILD_COSTS.house, p.x, p.y, 64, 48, "House");
+      state.city.construction.houses.push(project);
+      addEvent("House construction started.");
+      return project;
     }
 
     function nextHousePosition() {
@@ -2623,19 +2775,40 @@
       const pop = state.people.length;
       let builtToday = false;
       if (!isBuildingBuilt("townhall")) {
-        builtToday = tryBuildBuilding("townhall", "Town Hall", BUILD_COSTS.townhall);
+        const project = ensureConstructionProject("townhall", BUILD_COSTS.townhall, "Town Hall");
+        builtToday = investIntoProject(project);
+        if (builtToday) {
+          state.city.built.townhall = true;
+          state.city.construction.townhall = null;
+          addEvent("Town Hall was built.");
+        }
       } else if (!isBuildingBuilt("market")) {
-        builtToday = tryBuildBuilding("market", "Market", BUILD_COSTS.market);
+        const project = ensureConstructionProject("market", BUILD_COSTS.market, "Market");
+        builtToday = investIntoProject(project);
+        if (builtToday) {
+          state.city.built.market = true;
+          state.city.construction.market = null;
+          addEvent("Market was built.");
+        }
       } else if (!isBuildingBuilt("farm")) {
-        builtToday = tryBuildBuilding("farm", "Farm", BUILD_COSTS.farm);
+        const project = ensureConstructionProject("farm", BUILD_COSTS.farm, "Farm");
+        builtToday = investIntoProject(project);
+        if (builtToday) {
+          state.city.built.farm = true;
+          state.city.construction.farm = null;
+          addEvent("Farm was built.");
+        }
       }
 
       const needHomes = Math.max(0, Math.ceil((pop - state.city.houses.length * HOUSE_CAPACITY) / HOUSE_CAPACITY));
-      if (!builtToday && isBuildingBuilt("townhall") && needHomes > 0 && canBuild(BUILD_COSTS.house)) {
-        spendBuild(BUILD_COSTS.house);
-        const p = nextHousePosition();
-        state.city.houses.push(createHouse(p.x, p.y));
-        addEvent("A new house was built.");
+      if (!builtToday && isBuildingBuilt("townhall") && needHomes > 0) {
+        const houseProject = ensureHouseConstructionProject();
+        const finished = investIntoProject(houseProject);
+        if (finished) {
+          state.city.houses.push(createHouse(houseProject.x, houseProject.y));
+          state.city.construction.houses.shift();
+          addEvent("A new house was built.");
+        }
       }
 
       if (isBuildingBuilt("market")) {
@@ -2664,6 +2837,7 @@
         for (let i = 0; i < maxBirths; i++) {
           if (Math.random() < birthChance) {
             const baby = createPerson({ isBirth: true });
+            addVisualEffect("birth", baby.x, baby.y - 10, 1.8);
             addEvent(`${baby.name} was born.`);
             born += 1;
           }
@@ -2752,6 +2926,7 @@
       ui.overlayText.innerHTML = `
         <div><b>Day ${state.day}</b> ${hh} | Population: ${state.people.length}</div>
         <div>Stage: <b>${state.city.stage}</b> | City cash: $${Math.round(state.city.treasury)}</div>
+        <div>Daily needs: food <b>${Math.round(state.market.dailyNeed.food || 0)}</b>, medkits <b>${Math.round(state.market.dailyNeed.medkits || 0)}</b></div>
         <div>Finite map resources: forest ${forestLeft.toFixed(0)}, orchard food ${orchardFood.toFixed(0)}, wild food ${wildFood.toFixed(0)}, herbs ${wildHerbs.toFixed(0)}, farm crop ${state.resources.farm.crop.toFixed(0)}</div>
       `;
 
@@ -2848,6 +3023,8 @@
           `<div>Population: <b>${state.people.length}</b></div>`,
           `<div>City treasury: <b>$${Math.round(state.city.treasury)}</b></div>`,
           `<div>Market treasury: <b>$${Math.round(state.market.treasury)}</b></div>`,
+          `<div>Daily food need: <b>${Math.round(state.market.dailyNeed.food || 0)}</b></div>`,
+          `<div>Daily medkits need: <b>${Math.round(state.market.dailyNeed.medkits || 0)}</b></div>`,
           `<div>Market food stock: <b>${stocks.food.toFixed(0)}</b></div>`,
           `<div>Market herbs stock: <b>${stocks.herbs.toFixed(0)}</b></div>`,
           `<div>Houses: <b>${state.city.houses.length}</b></div>`
@@ -2944,6 +3121,44 @@
         ui.buildingCard.innerHTML = `
           <h2>No object selected</h2>
           <div class="mini">Click any object on the map to inspect description and stats.</div>
+        `;
+        return;
+      }
+
+      if (selected.startsWith("construction:")) {
+        let project = null;
+        let label = "Construction";
+        if (selected === "construction:townhall") {
+          project = state.city.construction ? state.city.construction.townhall : null;
+          label = "Town Hall";
+        } else if (selected === "construction:market") {
+          project = state.city.construction ? state.city.construction.market : null;
+          label = "Market";
+        } else if (selected === "construction:farm") {
+          project = state.city.construction ? state.city.construction.farm : null;
+          label = "Farm";
+        } else if (selected.startsWith("construction:house:")) {
+          const idx = Number(selected.split(":")[2]);
+          project = state.city.construction && Array.isArray(state.city.construction.houses)
+            ? state.city.construction.houses[idx]
+            : null;
+          label = "House";
+        }
+        if (!project) {
+          ui.buildingCard.innerHTML = `
+            <h2>Construction</h2>
+            <div class="mini">Project not found.</div>
+          `;
+          return;
+        }
+        const p = constructionProgress(project);
+        ui.buildingCard.innerHTML = `
+          <h2>${label} Construction</h2>
+          <div class="mini"><b>Progress:</b> ${(p * 100).toFixed(0)}%</div>
+          <div class="mini"><b>Logs:</b> ${project.paid.logs}/${project.cost.logs}</div>
+          <div class="mini"><b>Food:</b> ${project.paid.food}/${project.cost.food}</div>
+          <div class="mini"><b>Cash:</b> $${project.paid.cash}/$${project.cost.cash}</div>
+          <div class="mini"><b>Coords:</b> ${Math.round(project.x)}, ${Math.round(project.y)}</div>
         `;
         return;
       }
@@ -3615,6 +3830,29 @@
       }
     }
 
+    function drawConstructionProject(project, selected = false) {
+      if (!project) {
+        return;
+      }
+      const progress = constructionProgress(project);
+      ctx.fillStyle = "rgba(244, 236, 200, 0.10)";
+      ctx.fillRect(project.x, project.y, project.w, project.h);
+      ctx.strokeStyle = "rgba(95, 79, 52, 0.8)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(project.x, project.y, project.w, project.h);
+
+      ctx.fillStyle = "rgba(108, 190, 120, 0.55)";
+      ctx.fillRect(project.x, project.y, project.w * progress, project.h);
+
+      ctx.fillStyle = "#f3f4dc";
+      ctx.font = "10px Trebuchet MS";
+      ctx.textAlign = "center";
+      ctx.fillText(`${project.label} ${Math.round(progress * 100)}%`, project.x + project.w * 0.5, project.y + project.h * 0.55);
+      if (selected) {
+        drawSelectionMarker(project.x + project.w * 0.5, project.y - 4, 18);
+      }
+    }
+
     function drawRoadNetwork() {
       const edges = roadEdges(ROAD.drawThreshold);
       const cells = roadCells(ROAD.drawThreshold * 0.86);
@@ -3797,6 +4035,17 @@
           }
         }
 
+        if (state.city.construction) {
+          drawConstructionProject(state.city.construction.townhall, isSelectedBuilding("construction:townhall"));
+          drawConstructionProject(state.city.construction.market, isSelectedBuilding("construction:market"));
+          drawConstructionProject(state.city.construction.farm, isSelectedBuilding("construction:farm"));
+          if (Array.isArray(state.city.construction.houses)) {
+            for (let i = 0; i < state.city.construction.houses.length; i++) {
+              drawConstructionProject(state.city.construction.houses[i], isSelectedBuilding(`construction:house:${i}`));
+            }
+          }
+        }
+
         if (isBuildingBuilt("market")) {
           drawBuilding(BUILDINGS.market, "#ac824f", "#744d27", "Market", false, null, isSelectedBuilding("building:market"), null);
         }
@@ -3863,6 +4112,17 @@
         drawImageCover(sprites.sawmill, f.x - 52, f.y - 10, 104, 52);
         if (isSelectedObject(`forest:${i}`)) {
           drawSelectionMarker(f.x, f.y - 24, 18);
+        }
+      }
+
+      if (state.city.construction) {
+        drawConstructionProject(state.city.construction.townhall, isSelectedBuilding("construction:townhall"));
+        drawConstructionProject(state.city.construction.market, isSelectedBuilding("construction:market"));
+        drawConstructionProject(state.city.construction.farm, isSelectedBuilding("construction:farm"));
+        if (Array.isArray(state.city.construction.houses)) {
+          for (let i = 0; i < state.city.construction.houses.length; i++) {
+            drawConstructionProject(state.city.construction.houses[i], isSelectedBuilding(`construction:house:${i}`));
+          }
         }
       }
 
@@ -3955,6 +4215,44 @@
       }
     }
 
+    function drawVisualEffects() {
+      for (const fx of visualEffects) {
+        const p = clamp(fx.ttl / Math.max(0.001, fx.maxTtl), 0, 1);
+        if (fx.type === "birth") {
+          const radius = 10 + (1 - p) * 14;
+          ctx.strokeStyle = `rgba(255, 231, 140, ${p * 0.9})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(fx.x, fx.y, radius, 0, Math.PI * 2);
+          ctx.stroke();
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            const r1 = 4;
+            const r2 = radius;
+            ctx.beginPath();
+            ctx.moveTo(fx.x + Math.cos(a) * r1, fx.y + Math.sin(a) * r1);
+            ctx.lineTo(fx.x + Math.cos(a) * r2, fx.y + Math.sin(a) * r2);
+            ctx.stroke();
+          }
+        } else if (fx.type === "death") {
+          const r = 11;
+          ctx.fillStyle = `rgba(245, 245, 245, ${p * 0.95})`;
+          ctx.strokeStyle = `rgba(50, 50, 50, ${p * 0.9})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = `rgba(30, 30, 30, ${p * 0.9})`;
+          ctx.beginPath();
+          ctx.arc(fx.x - 3.5, fx.y - 2, 1.8, 0, Math.PI * 2);
+          ctx.arc(fx.x + 3.5, fx.y - 2, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillRect(fx.x - 3, fx.y + 3, 6, 2);
+        }
+      }
+    }
+
     function render() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
@@ -3963,6 +4261,7 @@
 
       renderMapBase();
       drawPeople();
+      drawVisualEffects();
 
       // Day/night tint.
       const h = currentHour();
@@ -4010,6 +4309,7 @@
           autosaveTimer = 0;
         }
       }
+      updateVisualEffects(dt);
       render();
       requestAnimationFrame(gameLoop);
     }
